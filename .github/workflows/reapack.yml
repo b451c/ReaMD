@@ -17,6 +17,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Configure git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
@@ -37,13 +42,4 @@ jobs:
             Main/
 
       - name: Push index
-        run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git add index.xml
-          if git diff --quiet --cached; then
-            echo "No changes to commit"
-          else
-            git commit -m "Update ReaPack index"
-            git push
-          fi
+        run: git push
