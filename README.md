@@ -170,16 +170,9 @@ Click **Edit Prompt** in settings to modify `prompts/ai_format_prompt.txt`. Tail
 ## Screenshots
 
 <details>
-<summary><strong>Dark Theme</strong></summary>
+<summary><strong>Dark & Light Themes</strong></summary>
 <p align="center">
-  <img src="docs/images/theme-dark.png" alt="Dark Theme" width="700">
-</p>
-</details>
-
-<details>
-<summary><strong>Light Theme</strong></summary>
-<p align="center">
-  <img src="docs/images/theme-light.png" alt="Light Theme" width="700">
+  <img src="docs/images/themes.png" alt="Dark and Light Themes" width="700">
 </p>
 </details>
 
@@ -187,6 +180,13 @@ Click **Edit Prompt** in settings to modify `prompts/ai_format_prompt.txt`. Tail
 <summary><strong>Settings Panel</strong></summary>
 <p align="center">
   <img src="docs/images/settings.png" alt="Settings" width="400">
+</p>
+</details>
+
+<details>
+<summary><strong>AI Parse Window</strong></summary>
+<p align="center">
+  <img src="docs/images/ai-parse-window.png" alt="AI Parse Window" width="500">
 </p>
 </details>
 
