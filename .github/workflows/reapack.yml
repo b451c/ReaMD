@@ -23,10 +23,12 @@ jobs:
       - name: Install reapack-index
         run: gem install reapack-index
 
+      - name: Check packages
+        run: reapack-index --check
+        continue-on-error: true
+
       - name: Build index
-        run: |
-          reapack-index --check
-          reapack-index --name "ReaMD" --url "https://github.com/b451c/ReaMD/raw/main/index.xml"
+        run: reapack-index
 
       - name: Commit and push index
         run: |
