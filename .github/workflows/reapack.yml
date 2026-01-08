@@ -22,18 +22,21 @@ jobs:
         with:
           ruby-version: '3.2'
 
-      - name: Install reapack-index
-        run: gem install reapack-index
+      - name: Install dependencies
+        run: |
+          gem install reapack-index
+          sudo apt-get update && sudo apt-get install -y pandoc
 
       - name: Build index
         run: |
           reapack-index \
+            --commit \
             --output index.xml \
             --name "ReaMD" \
             --link "https://github.com/b451c/ReaMD" \
             Main/
 
-      - name: Commit and push index
+      - name: Push index
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
