@@ -23,7 +23,7 @@
 --   [nomain] ../Libs/utils.lua
 --   [data] ../prompts/ai_format_prompt.txt
 -- @link GitHub https://github.com/b451c/ReaMD
--- @link Forum Thread https://forum.cockos.com/showthread.php?t=XXXXXX
+-- @link Forum Thread https://forum.cockos.com/showthread.php?p=2915326
 -- @screenshot https://raw.githubusercontent.com/b451c/ReaMD/main/docs/images/hero.png
 -- @donation https://buymeacoffee.com/bsroczynskh
 -- @about
