@@ -1,7 +1,9 @@
 -- @description ReaMD - Dockable Markdown Viewer for REAPER
 -- @author b4s1c
--- @version 1.0.0
+-- @version 1.0.1
 -- @changelog
+--   v1.0.1 (2026-01-10)
+--   * Fix ReaPack installation - include all required files (ai_parser.lua, teleprompter.lua, ai_format_prompt.txt)
 --   v1.0.0 (2026-01-08)
 --   + Initial public release
 --   + Full markdown rendering (headers, lists, tables, code blocks)
