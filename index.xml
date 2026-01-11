@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaMD" commit="605a55c36ca9d80a64ee0a483461693421225e77">
+<index version="1" name="ReaMD" commit="1c471931359d34aa7791dfddfac83bcb0fc79689">
   <category name="Main">
     <reapack name="ReaMD.lua" type="script" desc="ReaMD - Dockable Markdown Viewer for REAPER">
       <metadata>
@@ -91,6 +91,31 @@ v1.0.0 (2026-01-08)
         <source file="../Libs/teleprompter.lua">https://github.com/b451c/ReaMD/raw/605a55c36ca9d80a64ee0a483461693421225e77/Libs/teleprompter.lua</source>
         <source file="../Libs/utils.lua">https://github.com/b451c/ReaMD/raw/605a55c36ca9d80a64ee0a483461693421225e77/Libs/utils.lua</source>
         <source type="data" file="../prompts/ai_format_prompt.txt">https://github.com/b451c/ReaMD/raw/605a55c36ca9d80a64ee0a483461693421225e77/prompts/ai_format_prompt.txt</source>
+      </version>
+      <version name="1.0.3" author="b4s1c" time="2026-01-11T02:18:26Z">
+        <changelog><![CDATA[v1.0.3 (2026-01-11)
+* Fix ImGui ID conflict when recent files have same filename
+v1.0.2 (2026-01-11)
+* Update welcome message to reflect current features
+v1.0.1 (2026-01-10)
+* Fix ReaPack installation - include all required files (ai_parser.lua, teleprompter.lua, ai_format_prompt.txt)
+v1.0.0 (2026-01-08)
++ Initial public release
++ Full markdown rendering (headers, lists, tables, code blocks)
++ Scenario Mode with multi-item linking
++ Teleprompter mode with auto-scroll
++ AI Parse feature (Claude API integration)
++ Dark and Light themes]]></changelog>
+        <source main="main">https://github.com/b451c/ReaMD/raw/1c471931359d34aa7791dfddfac83bcb0fc79689/Main/ReaMD.lua</source>
+        <source file="../Libs/ai_parser.lua">https://github.com/b451c/ReaMD/raw/1c471931359d34aa7791dfddfac83bcb0fc79689/Libs/ai_parser.lua</source>
+        <source file="../Libs/config.lua">https://github.com/b451c/ReaMD/raw/1c471931359d34aa7791dfddfac83bcb0fc79689/Libs/config.lua</source>
+        <source file="../Libs/json.lua">https://github.com/b451c/ReaMD/raw/1c471931359d34aa7791dfddfac83bcb0fc79689/Libs/json.lua</source>
+        <source file="../Libs/md_parser.lua">https://github.com/b451c/ReaMD/raw/1c471931359d34aa7791dfddfac83bcb0fc79689/Libs/md_parser.lua</source>
+        <source file="../Libs/md_renderer.lua">https://github.com/b451c/ReaMD/raw/1c471931359d34aa7791dfddfac83bcb0fc79689/Libs/md_renderer.lua</source>
+        <source file="../Libs/scenario_engine.lua">https://github.com/b451c/ReaMD/raw/1c471931359d34aa7791dfddfac83bcb0fc79689/Libs/scenario_engine.lua</source>
+        <source file="../Libs/teleprompter.lua">https://github.com/b451c/ReaMD/raw/1c471931359d34aa7791dfddfac83bcb0fc79689/Libs/teleprompter.lua</source>
+        <source file="../Libs/utils.lua">https://github.com/b451c/ReaMD/raw/1c471931359d34aa7791dfddfac83bcb0fc79689/Libs/utils.lua</source>
+        <source type="data" file="../prompts/ai_format_prompt.txt">https://github.com/b451c/ReaMD/raw/1c471931359d34aa7791dfddfac83bcb0fc79689/prompts/ai_format_prompt.txt</source>
       </version>
     </reapack>
   </category>
