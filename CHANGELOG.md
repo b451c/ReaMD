@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Alternating table row backgrounds for better readability
   - Cleaner off-white background with proper borders
   - Improved visual hierarchy
+  - Lighter scenario [+] buttons for better text visibility
 
 ## [1.0.2] - 2026-01-11
 

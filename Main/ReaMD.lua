@@ -6,6 +6,7 @@
 --   * Fix ImGui ID conflict when recent files have same filename
 --   * Fix settings (theme, etc.) not persisting after restart
 --   * Redesign Light theme: better contrast, blue buttons, alternating table rows
+--   * Improve scenario [+] button colors for better visibility in light theme
 --   v1.0.2 (2026-01-11)
 --   * Update welcome message to reflect current features
 --   v1.0.1 (2026-01-10)

@@ -347,11 +347,11 @@ local function render_item_linker(ctx, state, line_start, line_end, identifier, 
         reaper.ImGui_SameLine(ctx)
     end
 
-    -- [+] button - add item from selection (medium gray for visibility)
+    -- [+] button - add item from selection (neutral gray, works in both themes)
     -- If item is in a group, adds all items from that group
-    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Button(), 0x777777FF)
-    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonHovered(), 0x888888FF)
-    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonActive(), 0x666666FF)
+    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Button(), 0xA0A0A0FF)
+    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonHovered(), 0xB8B8B8FF)
+    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonActive(), 0x909090FF)
     if reaper.ImGui_SmallButton(ctx, add_id) then
         local item, guid, all_guids = scenario.get_selected_item()
         if item and all_guids and #all_guids > 0 then
@@ -374,12 +374,12 @@ local function render_item_linker(ctx, state, line_start, line_end, identifier, 
         reaper.ImGui_SetTooltip(ctx, "Select item on timeline, click + to link")
     end
 
-    -- [N] badge - show count, click to open popup (medium gray for visibility)
+    -- [N] badge - show count, click to open popup (neutral gray, works in both themes)
     if count > 0 then
         reaper.ImGui_SameLine(ctx)
-        reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Button(), 0x777777FF)
-        reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonHovered(), 0x888888FF)
-        reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonActive(), 0x666666FF)
+        reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Button(), 0xA0A0A0FF)
+        reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonHovered(), 0xB8B8B8FF)
+        reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonActive(), 0x909090FF)
         if reaper.ImGui_SmallButton(ctx, badge_id) then
             -- Toggle popup
             if popup_state.open_for_line == line_start then
