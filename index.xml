@@ -80,11 +80,15 @@
 \widowctrl\hyphauto
 
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 ReaMD - Markdown Viewer for REAPER\par}
-{\pard \ql \f0 \sa180 \li0 \fi0 Dockable markdown viewer for audio production workflows.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Dockable markdown viewer for audio production workflows. Link text fragments to timeline items, use teleprompter mode for VO, and format text with AI.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Key Features\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Scenario Linking} - Connect text to timeline items\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Teleprompter} - Auto-scrolling VO display\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b AI Parse} - Format text with Claude API\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Live Preview} - Edit with real-time preview\sa180\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b AI Parse} - Convert messy text to clean markdown (Claude API)\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Full Markdown} - Headers, lists, tables, code blocks\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Requirements\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab REAPER 7.0+\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab ReaImGui 0.10+\sa180\par}
 {\pard \qc \f0 \sa180 \li0 \fi0 \emdash\emdash\emdash\emdash\emdash\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 MIT License | https://github.com/b451c/ReaMD\par}
 }
