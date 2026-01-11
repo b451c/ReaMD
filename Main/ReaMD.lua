@@ -1,7 +1,9 @@
 -- @description ReaMD - Dockable Markdown Viewer for REAPER
 -- @author b4s1c
--- @version 1.0.1
+-- @version 1.0.2
 -- @changelog
+--   v1.0.2 (2026-01-11)
+--   * Update welcome message to reflect current features
 --   v1.0.1 (2026-01-10)
 --   * Fix ReaPack installation - include all required files (ai_parser.lua, teleprompter.lua, ai_format_prompt.txt)
 --   v1.0.0 (2026-01-08)
@@ -902,12 +904,12 @@ local function render_content()
             -- No file loaded - show welcome message
             reaper.ImGui_TextWrapped(ctx,
                 "Welcome to ReaMD!\n\n" ..
-                "Click 'Open' to load a Markdown file.\n\n" ..
+                "Open a Markdown file or create a new one to get started.\n\n" ..
                 "Features:\n" ..
-                "- Full markdown rendering\n" ..
-                "- Scenario Mode: sync text with Reaper regions\n" ..
-                "- Auto-scroll during playback\n" ..
-                "- Select Mode: select and copy text\n"
+                "- Full markdown rendering (headers, lists, tables, code)\n" ..
+                "- Scenario Mode: link text fragments to timeline items\n" ..
+                "- Teleprompter: auto-scrolling display for voiceover\n" ..
+                "- AI Parse: format unstructured text with Claude\n"
             )
         end
 
