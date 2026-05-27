@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaMD" commit="77cec87625f366915681be19435d6dd082d62c68">
+<index version="1" name="ReaMD" commit="e2c451cd6b1a54aae9dcbd4994588ce6ee6c8c34">
   <category name="Main">
     <reapack name="ReaMD.lua" type="script" desc="ReaMD - Dockable Markdown Viewer for REAPER">
       <metadata>
@@ -10,15 +10,28 @@
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 ReaMD - Markdown Viewer for REAPER\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 Dockable markdown viewer designed for audio production workflows. Link text fragments to timeline items, use teleprompter mode for VO, and format text with AI.\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Features\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Full markdown rendering (headers, lists, tables, code blocks)\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Live Preview in edit mode\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Scenario Mode - link text to timeline items\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Teleprompter with auto-scroll\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab AI Parse (Claude API)\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Dark and Light themes\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\b Core}\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Full markdown rendering (headers, lists, tables, code blocks, blockquotes)\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Edit mode - create and modify markdown in REAPER\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Dark & Light themes\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\b Scenario Mode}\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Link text fragments to timeline items\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Multi-item support with category colors (V/M/F/O)\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab REAPER group awareness\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Playback position tracking\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\b Teleprompter}\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab VO-focused display with auto-scroll\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Large centered text, progress indicator\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\b AI Parse}\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Convert unformatted text to markdown using Claude AI\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Customizable prompt template\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Async processing (non-blocking)\sa180\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Requirements\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab REAPER 7.0+\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab ReaImGui 0.10+\sa180\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab ReaImGui 0.10+\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab (Recommended) js_ReaScriptAPI, SWS Extension\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Note\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Tested on macOS Tahoe 26.2. Windows/Linux support expected but not verified.\par}
 }
 ]]></description>
         <link rel="website" href="https://forum.cockos.com/showthread.php?p=2915326">Forum Thread</link>
@@ -115,10 +128,14 @@
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 ReaMD - Markdown Viewer for REAPER\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 Dockable markdown viewer for audio production workflows. Link text fragments to timeline items, use teleprompter mode for VO, and format text with AI.\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Key Features\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Scenario Linking} - Connect text to timeline items\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Scenario Linking} - Connect headings and table rows to timeline items\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Cue List} - Sorted overview of all linked fragments, click to jump\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Teleprompter} - Auto-scrolling VO display\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b AI Parse} - Convert messy text to clean markdown (Claude API)\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Full Markdown} - Headers, lists, tables, code blocks\sa180\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b AI Parse} - Convert messy text to clean markdown (Claude Haiku/Sonnet/Opus)\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Full Markdown} - Headers, lists, tables (with proper text wrapping), code blocks, strikethrough\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Search} - Ctrl+F in-document find with next/prev\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b time:// links} - Markdown links can jump REAPER's edit cursor\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Cross-platform} - Windows, macOS, Linux\sa180\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Requirements\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab REAPER 7.0+\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab ReaImGui 0.10+\sa180\par}
