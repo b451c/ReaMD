@@ -882,6 +882,140 @@ function ScenarioEngine.get_item_info(item_guid)
     return nil
 end
 
+--- Extract text from first cell of a table row (for identification)
+-- @param row table: Table row with cells (node from parser)
+-- @return string: Plain text of first cell, trimmed
+local function get_first_cell_text(row)
+    if not row or not row.cells or not row.cells[1] then return "" end
+    local cell = row.cells[1]
+    local function flat(node)
+        if not node then return "" end
+        if node.type == "text" then return node.text or "" end
+        if node.text then return node.text end
+        local parts = {}
+        if node.children then
+            for _, c in ipairs(node.children) do
+                table.insert(parts, flat(c))
+            end
+        end
+        return table.concat(parts)
+    end
+    return (flat(cell):match("^%s*(.-)%s*$")) or ""
+end
+
+--- Walk AST and yield every linkable element (heading or non-header table row).
+-- Each entry: { kind="heading"|"table_row", text, line_start, line_end, row_index, section_end }
+-- @param parsed_ast table
+-- @return table: list of linkable entries
+local function collect_linkables(parsed_ast)
+    local out = {}
+    if not parsed_ast or not parsed_ast.children then return out end
+
+    -- Pass 1: collect headings (with computed section_end)
+    local headings = {}
+    for _, node in ipairs(parsed_ast.children) do
+        if node.type == "heading" then
+            table.insert(headings, node)
+        end
+    end
+    for i, h in ipairs(headings) do
+        local next_h = headings[i + 1]
+        local section_end = next_h and (next_h.line_start - 1)
+                           or (parsed_ast.line_end or h.line_end)
+        table.insert(out, {
+            kind = "heading",
+            text = extract_heading_text(h),
+            line_start = h.line_start,
+            line_end = section_end,
+            section_end = section_end,
+        })
+    end
+
+    -- Pass 2: collect table rows (skip header rows)
+    for _, node in ipairs(parsed_ast.children) do
+        if node.type == "table" then
+            local data_idx = 0
+            for _, row in ipairs(node.rows or {}) do
+                if not row.is_header then
+                    data_idx = data_idx + 1
+                    local id = get_first_cell_text(row)
+                    if id and id ~= "" then
+                        table.insert(out, {
+                            kind = "table_row",
+                            text = id,
+                            line_start = row.line_start or node.line_start,
+                            line_end = row.line_end or row.line_start or node.line_start,
+                            row_index = data_idx,
+                        })
+                    end
+                end
+            end
+        end
+    end
+
+    return out
+end
+
+--- Auto-link headings AND table rows to media items by matching take name.
+-- This is the v3 (item-based) counterpart to auto_link_by_name (region-based).
+-- @param parsed_ast table
+-- @return number: Count of (linkable × item) pairs linked
+function ScenarioEngine.auto_link_by_item_name(parsed_ast)
+    if not parsed_ast or not parsed_ast.children then return 0 end
+
+    ScenarioEngine.refresh_items()
+    local linkables = collect_linkables(parsed_ast)
+    if #linkables == 0 then return 0 end
+
+    -- Build index: normalized take name -> list of item_data
+    local index = {}
+    for _, item_data in ipairs(ScenarioEngine.items) do
+        local take = reaper.GetActiveTake(item_data.item)
+        local name = ""
+        if take then
+            local ok, take_name = pcall(reaper.GetTakeName, take)
+            if ok and take_name then name = take_name end
+        end
+        local norm = normalize_for_match(name)
+        if norm ~= "" then
+            index[norm] = index[norm] or {}
+            table.insert(index[norm], item_data)
+        end
+    end
+
+    local count = 0
+    for _, entry in ipairs(linkables) do
+        local norm_text = normalize_for_match(entry.text)
+        if norm_text ~= "" then
+            -- Find first matching take-name bucket (exact or fuzzy substring)
+            for name, items in pairs(index) do
+                local hit = name == norm_text
+                          or name:find(norm_text, 1, true) ~= nil
+                          or norm_text:find(name, 1, true) ~= nil
+                if hit then
+                    -- Skip if this line already has any linked items
+                    local existing = ScenarioEngine.get_fragment_item_guids(entry.line_start)
+                    if #existing == 0 then
+                        for _, item in ipairs(items) do
+                            ScenarioEngine.link_fragment_to_item(
+                                item.guid,
+                                entry.line_start, entry.line_end,
+                                entry.text,
+                                entry.kind,
+                                entry.row_index
+                            )
+                            count = count + 1
+                        end
+                    end
+                    break  -- one bucket per linkable
+                end
+            end
+        end
+    end
+
+    return count
+end
+
 --- Auto-link regions to headings by fuzzy name matching
 -- @param parsed_ast table: Parsed markdown AST from md_parser
 -- @return number: Count of links created
@@ -940,6 +1074,62 @@ function ScenarioEngine.auto_link_by_name(parsed_ast)
     end
 
     return links_created
+end
+
+--- Convert an ImGui RGBA color (0xRRGGBBAA) to a REAPER native color suitable
+-- for AddProjectMarker2 (returns native | 0x1000000 so REAPER applies it).
+-- @param rgba number
+-- @return number
+function ScenarioEngine.imgui_color_to_region_color(rgba)
+    if not rgba then return 0 end
+    local r = math.floor(rgba / 0x1000000) % 256
+    local g = math.floor(rgba / 0x10000) % 256
+    local b = math.floor(rgba / 0x100) % 256
+    local native = reaper.ColorToNative(r, g, b)
+    -- 0x1000000 = "I have a color, use it". ColorToNative returns 24-bit RGB so
+    -- bit 0x1000000 is never set; '+' is equivalent to '|' here and works on
+    -- both Lua 5.1 (no '|' operator) and 5.3+.
+    return native + 0x1000000
+end
+
+--- Export all linked fragments as REAPER regions on the timeline.
+-- Each fragment becomes one region spanning earliest-start..latest-end of its
+-- item set, named with the fragment identifier and colored per category.
+-- Skips fragments whose items can't be resolved.
+-- @return number: regions created
+function ScenarioEngine.export_to_regions()
+    if not ScenarioEngine.fragment_map.fragments then return 0 end
+
+    local count = 0
+    for _, frag in ipairs(ScenarioEngine.fragment_map.fragments) do
+        local guids = frag.item_guids
+        if not guids and frag.item_guid then guids = {frag.item_guid} end
+
+        if guids and #guids > 0 then
+            local start_pos, end_pos
+            for _, guid in ipairs(guids) do
+                local s, e = ScenarioEngine.get_item_bounds(guid)
+                if s then
+                    if not start_pos or s < start_pos then start_pos = s end
+                    if not end_pos or e > end_pos then end_pos = e end
+                end
+            end
+
+            if start_pos and end_pos and end_pos > start_pos then
+                local cat = ScenarioEngine.get_color_category_info(frag.color_category)
+                local color = ScenarioEngine.imgui_color_to_region_color(cat.button_color)
+                local name = frag.identifier or frag.heading or "Fragment"
+                reaper.AddProjectMarker2(0, true, start_pos, end_pos, name, -1, color)
+                count = count + 1
+            end
+        end
+    end
+
+    if count > 0 then
+        reaper.UpdateArrange()
+        ScenarioEngine.refresh_regions()
+    end
+    return count
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════

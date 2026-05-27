@@ -46,33 +46,45 @@ Perfect for:
 ## Features
 
 ### Core Markdown Support
-- Full markdown rendering (headers, lists, tables, code blocks, blockquotes)
-- **Edit mode** - Write and modify markdown directly in REAPER
-- **Dark & Light themes** - Seamlessly match your REAPER theme
-- Dockable window - Integrate into your workflow
+- Full markdown rendering (headers, lists, tables, code blocks, blockquotes, **strikethrough**)
+- **Edit mode** with live split-view preview
+- **In-document search** (`Ctrl+F`) with next/prev navigation
+- **`time://HH:MM:SS` links** — clicking jumps REAPER's edit cursor to that timestamp
+- **Dark & Light themes** matching your REAPER look
+- Dockable window
 
 <p align="center">
   <img src="docs/images/editor.gif" alt="Edit Mode Demo" width="600">
 </p>
 
 ### Scenario Linking
-- **Link text fragments to timeline items** - Click a paragraph, jump to the item
-- **Multi-item support** - One fragment can reference multiple items
-- **Category colors** - V (Voiceover), M (Music), F (FX), O (Other)
-- **Group awareness** - REAPER item groups treated as single units
-- **Visual feedback** - Linked fragments highlighted, playback position tracked
+- **Link text fragments to timeline items** — click a paragraph or table row, jump to the items
+- **Multi-item per fragment** — one paragraph can reference several items
+- **Category colors** — V (Voiceover), M (Music), F (FX), O (Other)
+- **Group awareness** — REAPER item groups treated as single units
+- **Auto-Link by name** — match headings and table rows against item take names and region names in one click
+- **Cue List panel** — sorted overview of every linked fragment, click to jump
+- **Export to regions** — turn linked fragments into REAPER regions, colored by category
+- **Auto-save** scenario data to a `.reamd` sidecar on every change
 
 ### Teleprompter Mode
-- **VO-focused display** - Shows only voiceover text, large and centered
-- **Auto-scroll** - Follows playback position automatically
-- **Progress indicator** - Orange (next cue) / Green (current item ending)
-- **Semi-transparent overlay** - 50% opacity, stays out of the way
+- **VO-focused display** — voiceover text shown large and centered
+- **Auto-scroll** following playback position
+- **Progress indicator** — orange (next cue) / green (current item ending)
+- **Semi-transparent overlay** — 50% opacity, stays out of the way
 
 ### AI Parse (Claude Integration)
-- **Paste unformatted text** - Meeting notes, raw scripts, brain dumps
-- **AI formats to markdown** - Clean structure with proper headings and lists
-- **Customizable prompt** - Tailor the AI behavior to your workflow
-- **Non-blocking** - Async processing, UI stays responsive
+- **Paste unformatted text** — meeting notes, raw scripts, brain dumps
+- **Model selector** — Haiku 4.5 (default, fast/cheap), Sonnet 4.6, or Opus 4.7
+- **Apply to editor** or save as a new file — your call after reviewing the result
+- **Customizable prompt** at `prompts/ai_format_prompt.txt`
+- **Non-blocking** — async processing, UI stays responsive
+- Works on macOS, Linux, **and Windows** (uses `curl`)
+
+### Productivity
+- **Keyboard shortcuts** — `Ctrl+F` search, `Ctrl+S` save, `Ctrl+O` open, `Ctrl+E` toggle edit
+- **Welcome screen** with recent files and quick-action buttons
+- **Unsaved-changes indicator** (`*` in title bar)
 
 ---
 
@@ -228,6 +240,7 @@ ReaMD/
 ├── Libs/
 │   ├── ai_parser.lua       # AI integration module
 │   ├── config.lua          # Settings management
+│   ├── cue_list.lua        # Cue List floating panel
 │   ├── json.lua            # JSON encoder/decoder
 │   ├── md_parser.lua       # Markdown parser
 │   ├── md_renderer.lua     # ReaImGui renderer

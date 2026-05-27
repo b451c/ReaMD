@@ -95,9 +95,27 @@ Full path: `/home/<YourName>/.config/REAPER/Scripts/ReaMD/`
 
 ---
 
-## Method 2: ReaPack (Coming Soon)
+## Method 2: ReaPack
 
-ReaPack distribution is planned for a future release.
+ReaMD ships its own ReaPack repository — recommended for users who want
+automatic updates.
+
+1. **Add the repository to ReaPack**
+   - REAPER → Extensions → ReaPack → Import repositories...
+   - Paste: `https://github.com/b451c/ReaMD/raw/main/index.xml`
+   - Click OK.
+
+2. **Install ReaMD**
+   - Extensions → ReaPack → Browse packages
+   - Search for **"ReaMD"** → right-click → **Install**
+   - **Apply** and restart REAPER.
+
+3. **Run**
+   - Actions → Show action list → search for "ReaMD" → double-click.
+   - (Optional) assign a keyboard shortcut.
+
+When a new version ships, the next *Browse packages → Refresh* will offer to
+update automatically.
 
 ---
 
@@ -160,8 +178,9 @@ Your settings (theme, API key, etc.) are stored in REAPER's ExtState, not in fil
 
 ### Windows
 
-- AI Parse requires `curl.exe` (included in Windows 10 build 17063+)
-- For older Windows, install curl manually or use WSL
+- AI Parse (v1.1.0+) uses a `.bat` launcher and `curl.exe` (included in Windows 10 build 17063+).
+- For older Windows, install curl manually from [curl.se](https://curl.se/windows/).
+- Windows support added in v1.1.0; earlier versions used a bash-only launcher.
 
 ### macOS
 

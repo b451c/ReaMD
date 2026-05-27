@@ -15,6 +15,7 @@ Parser.NodeTypes = {
     TEXT = "text",
     BOLD = "bold",
     ITALIC = "italic",
+    STRIKE = "strike",
     CODE_INLINE = "code_inline",
     CODE_BLOCK = "code_block",
     LIST_UL = "list_ul",
@@ -153,14 +154,29 @@ local function parse_inline(text, line_start, line_end)
         local char = text:sub(pos, pos)
         local next_char = text:sub(pos + 1, pos + 1)
 
-        -- Handle escapes: \* \_ \` \[ \] \( \) \\ etc.
+        -- Handle escapes: \* \_ \` \[ \] \( \) \~ \| \\ etc.
         if char == "\\" and pos < len then
             local escaped = text:sub(pos + 1, pos + 1)
-            if escaped:match("[%*%_%`%[%]%(%)\\]") then
+            if escaped:match("[%*%_%`%[%]%(%)%~%|\\]") then
                 plain_text = plain_text .. escaped
                 pos = pos + 2
             else
                 -- Not a special escape, keep backslash
+                plain_text = plain_text .. char
+                pos = pos + 1
+            end
+
+        -- Strikethrough: ~~text~~
+        elseif char == "~" and next_char == "~" then
+            local strike_end = find_closing_delimiter(text, pos + 2, "~~")
+            if strike_end then
+                flush_text()
+                local strike_content = text:sub(pos + 2, strike_end - 1)
+                local node = create_node(NT.STRIKE, line_start, line_end)
+                node.children = parse_inline(strike_content, line_start, line_end)
+                table.insert(nodes, node)
+                pos = strike_end + 2
+            else
                 plain_text = plain_text .. char
                 pos = pos + 1
             end
@@ -371,14 +387,15 @@ local function detect_table_separator(line)
 end
 
 --- Parse table cells from a row
+-- Splits by '|' while honoring '\|' as a literal pipe inside cell content.
 -- @param line string: Table row line
--- @param line_num number: Line number
--- @return table: Array of cell content strings
+-- @param line_num number: Line number (unused, kept for API compatibility)
+-- @return table: Array of cell content strings (trimmed)
 local function parse_table_cells(line, line_num)
     local cells = {}
-    local trimmed = line:match("^%s*(.-)%s*$")
+    local trimmed = line:match("^%s*(.-)%s*$") or ""
 
-    -- Remove leading and trailing |
+    -- Strip leading/trailing | (canonical Markdown table form: | a | b |)
     if trimmed:sub(1, 1) == "|" then
         trimmed = trimmed:sub(2)
     end
@@ -386,11 +403,29 @@ local function parse_table_cells(line, line_num)
         trimmed = trimmed:sub(1, -2)
     end
 
-    -- Split by | and trim each cell
-    for cell in trimmed:gmatch("([^|]*)") do
-        local cell_content = cell:match("^%s*(.-)%s*$") or ""
-        table.insert(cells, cell_content)
+    -- Manual split that respects escaped pipes (\|)
+    local buf = {}
+    local i = 1
+    local n = #trimmed
+    while i <= n do
+        local c = trimmed:sub(i, i)
+        if c == "\\" and i < n and trimmed:sub(i + 1, i + 1) == "|" then
+            -- Escaped pipe -> literal '|' in cell, do not split
+            table.insert(buf, "|")
+            i = i + 2
+        elseif c == "|" then
+            local cell = table.concat(buf):match("^%s*(.-)%s*$") or ""
+            table.insert(cells, cell)
+            buf = {}
+            i = i + 1
+        else
+            table.insert(buf, c)
+            i = i + 1
+        end
     end
+    -- Last cell
+    local last = table.concat(buf):match("^%s*(.-)%s*$") or ""
+    table.insert(cells, last)
 
     return cells
 end
@@ -673,9 +708,9 @@ end
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Exported:
 --   Parser.parse(markdown_text) -> AST (document node with children)
---   Parser.NodeTypes = {DOCUMENT, HEADING, PARAGRAPH, TEXT, BOLD, ITALIC,
+--   Parser.NodeTypes = {DOCUMENT, HEADING, PARAGRAPH, TEXT, BOLD, ITALIC, STRIKE,
 --                       CODE_INLINE, CODE_BLOCK, LIST_UL, LIST_OL, LIST_ITEM,
---                       BLOCKQUOTE, LINK, HR}
+--                       BLOCKQUOTE, LINK, HR, TABLE, TABLE_ROW, TABLE_CELL}
 --
 -- AST Node structure:
 --   ALL nodes have: type, line_start, line_end

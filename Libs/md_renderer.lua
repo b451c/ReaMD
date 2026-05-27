@@ -205,6 +205,31 @@ local function render_italic(ctx, node, fonts, state)
     end
 end
 
+--- Render strikethrough node
+-- @param ctx ReaImGui context
+-- @param node table: Strike node
+-- @param fonts table: Font handles
+-- @param state table: Render state
+local function render_strike(ctx, node, fonts, state)
+    handle_inline_spacing(ctx)
+    -- Flatten children to plain text (formatting inside strike is rare and we
+    -- need a single text rect to draw the line through).
+    local text = ""
+    local function flat(n)
+        if n.type == NT.TEXT then text = text .. (n.text or "") end
+        if n.children then for _, c in ipairs(n.children) do flat(c) end end
+    end
+    if node.children then for _, c in ipairs(node.children) do flat(c) end end
+
+    reaper.ImGui_TextColored(ctx, 0x808080FF, text)
+    -- Draw a line through the just-rendered text
+    local x1, y1 = reaper.ImGui_GetItemRectMin(ctx)
+    local x2, y2 = reaper.ImGui_GetItemRectMax(ctx)
+    local mid_y = (y1 + y2) / 2
+    local dl = reaper.ImGui_GetWindowDrawList(ctx)
+    reaper.ImGui_DrawList_AddLine(dl, x1, mid_y, x2, mid_y, 0x808080FF, 1)
+end
+
 --- Render inline code
 -- @param ctx ReaImGui context
 -- @param node table: Code inline node
@@ -232,10 +257,6 @@ end
 local function render_link(ctx, node, fonts, state)
     handle_inline_spacing(ctx)
 
-    -- Render link text in link color
-    reaper.ImGui_TextColored(ctx, COLORS.link, "")
-    reaper.ImGui_SameLine(ctx, 0, 0)
-
     -- Build link text from children
     local link_text = ""
     if node.children then
@@ -248,12 +269,13 @@ local function render_link(ctx, node, fonts, state)
 
     reaper.ImGui_TextColored(ctx, COLORS.link, link_text)
 
-    -- Check for click
+    -- Hover tooltip with URL (helps disambiguate before clicking)
     if reaper.ImGui_IsItemHovered(ctx) then
-        if reaper.ImGui_IsMouseClicked(ctx, 0) then
-            if state then
-                state.clicked_link = node.url
-            end
+        if node.url and node.url ~= "" then
+            reaper.ImGui_SetTooltip(ctx, node.url)
+        end
+        if reaper.ImGui_IsMouseClicked(ctx, 0) and state then
+            state.clicked_link = node.url
         end
     end
 end
@@ -501,12 +523,6 @@ local function render_heading(ctx, node, fonts, state)
     reset_inline_context()
     record_line_position(ctx, node.line_start)
 
-    -- Check for highlight
-    local w, _ = reaper.ImGui_GetContentRegionAvail(ctx)
-    if should_highlight(state, node.line_start, node.line_end) then
-        draw_highlight_background(ctx, w, 24)  -- Approximate heading height
-    end
-
     -- Select font and size key based on heading level
     local heading_font = nil
     local size_key = nil
@@ -523,6 +539,13 @@ local function render_heading(ctx, node, fonts, state)
         -- Fallback to bold for h4-h6
         heading_font = fonts.bold
         size_key = "bold"
+    end
+
+    -- Check for highlight (height scaled to actual heading font size)
+    local w, _ = reaper.ImGui_GetContentRegionAvail(ctx)
+    if should_highlight(state, node.line_start, node.line_end) then
+        local h_size = (fonts.sizes and size_key and fonts.sizes[size_key]) or 18
+        draw_highlight_background(ctx, w, h_size + 6)
     end
 
     if heading_font then
@@ -614,8 +637,9 @@ local function render_code_block(ctx, node, fonts, state)
     reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ChildBg(), COLORS.code_bg)
 
     -- v0.10 API: BeginChild(ctx, id, w, h, child_flags, window_flags)
+    -- Horizontal scrollbar lets long single lines scroll instead of overflowing the cell area.
     local child_flags = reaper.ImGui_ChildFlags_None and reaper.ImGui_ChildFlags_None() or 0
-    local window_flags = reaper.ImGui_WindowFlags_None()
+    local window_flags = reaper.ImGui_WindowFlags_HorizontalScrollbar()
     if reaper.ImGui_BeginChild(ctx, child_id, w, block_height, child_flags, window_flags) then
         -- Add padding
         reaper.ImGui_SetCursorPosX(ctx, reaper.ImGui_GetCursorPosX(ctx) + LAYOUT.code_block_padding)
@@ -625,7 +649,7 @@ local function render_code_block(ctx, node, fonts, state)
             push_font(ctx, fonts.code, fonts, "code")
         end
 
-        -- Render code text
+        -- Render code text (no wrap — preserve formatting; horizontal scroll handles overflow)
         reaper.ImGui_TextColored(ctx, COLORS.code_text, code_text)
 
         if fonts.code then
@@ -770,55 +794,96 @@ local function render_hr(ctx, node, fonts, state)
     reaper.ImGui_Spacing(ctx)
 end
 
---- Render table cell content inline
+--- Extract plain text from any inline node (recursive)
+local function extract_inline_text(node)
+    if not node then return "" end
+    if node.type == NT.TEXT then return node.text or "" end
+    if node.text then return node.text end
+    if node.children then
+        local parts = {}
+        for _, child in ipairs(node.children) do
+            table.insert(parts, extract_inline_text(child))
+        end
+        return table.concat(parts)
+    end
+    return ""
+end
+
+--- Render table cell content inline (with proper text wrapping)
 -- @param ctx ReaImGui context
 -- @param cell table: Cell node with children
 -- @param fonts table: Font handles
 -- @param state table: Render state
 local function render_table_cell_content(ctx, cell, fonts, state)
-    if cell.children then
-        local first = true
-        for _, child in ipairs(cell.children) do
-            if child.type == NT.TEXT then
-                if not first then
-                    reaper.ImGui_SameLine(ctx, 0, 0)
-                end
-                reaper.ImGui_Text(ctx, child.text or "")
-                first = false
-            elseif child.type == NT.BOLD then
-                if not first then
-                    reaper.ImGui_SameLine(ctx, 0, 0)
-                end
-                if fonts.bold then
-                    push_font(ctx, fonts.bold, fonts, "bold")
-                end
-                for _, sub in ipairs(child.children or {}) do
-                    if sub.type == NT.TEXT then
-                        reaper.ImGui_Text(ctx, sub.text or "")
-                    end
-                end
-                if fonts.bold then
-                    reaper.ImGui_PopFont(ctx)
-                end
-                first = false
-            elseif child.type == NT.LINK then
-                if not first then
-                    reaper.ImGui_SameLine(ctx, 0, 0)
-                end
-                local link_text = ""
-                for _, sub in ipairs(child.children or {}) do
-                    if sub.type == NT.TEXT then
-                        link_text = link_text .. (sub.text or "")
-                    end
-                end
-                reaper.ImGui_TextColored(ctx, COLORS.link, link_text)
-                if reaper.ImGui_IsItemHovered(ctx) and reaper.ImGui_IsMouseClicked(ctx, 0) then
-                    if state then state.clicked_link = child.url end
-                end
-                first = false
+    if not cell.children or #cell.children == 0 then
+        return
+    end
+
+    -- PushTextWrapPos(0) is special: inside a table cell ImGui auto-wraps at
+    -- the column's right edge. Passing an explicit cursor_x + avail_w was wrong
+    -- because the cursor X is in window-local coords while wrap_pos compares
+    -- against the column's clip rect — the two coordinate systems didn't line up,
+    -- which made short content over-wrap and long content not wrap at all.
+    reaper.ImGui_PushTextWrapPos(ctx, 0)
+
+    local first = true
+    local function place(no_sameline)
+        if first then
+            first = false
+            return
+        end
+        if not no_sameline then
+            reaper.ImGui_SameLine(ctx, 0, 0)
+        end
+    end
+
+    for _, child in ipairs(cell.children) do
+        local ctype = child.type
+
+        if ctype == NT.TEXT then
+            place()
+            reaper.ImGui_Text(ctx, child.text or "")
+
+        elseif ctype == NT.BOLD then
+            place()
+            if fonts.bold then push_font(ctx, fonts.bold, fonts, "bold") end
+            reaper.ImGui_Text(ctx, extract_inline_text(child))
+            if fonts.bold then reaper.ImGui_PopFont(ctx) end
+
+        elseif ctype == NT.ITALIC then
+            place()
+            if fonts.italic then push_font(ctx, fonts.italic, fonts, "italic") end
+            reaper.ImGui_Text(ctx, extract_inline_text(child))
+            if fonts.italic then reaper.ImGui_PopFont(ctx) end
+
+        elseif ctype == NT.CODE_INLINE then
+            place()
+            if fonts.code then push_font(ctx, fonts.code, fonts, "code") end
+            reaper.ImGui_TextColored(ctx, COLORS.code_text, child.text or "")
+            if fonts.code then reaper.ImGui_PopFont(ctx) end
+
+        elseif ctype == NT.STRIKE then
+            place()
+            local txt = extract_inline_text(child)
+            reaper.ImGui_TextColored(ctx, 0x808080FF, txt)
+            -- Draw strike line over rendered text
+            local x1, y = reaper.ImGui_GetItemRectMin(ctx)
+            local x2, y2 = reaper.ImGui_GetItemRectMax(ctx)
+            local mid = (y + y2) / 2
+            local dl = reaper.ImGui_GetWindowDrawList(ctx)
+            reaper.ImGui_DrawList_AddLine(dl, x1, mid, x2, mid, 0x808080FF, 1)
+
+        elseif ctype == NT.LINK then
+            place()
+            local link_text = extract_inline_text(child)
+            reaper.ImGui_TextColored(ctx, COLORS.link, link_text)
+            if reaper.ImGui_IsItemHovered(ctx) and reaper.ImGui_IsMouseClicked(ctx, 0) then
+                if state then state.clicked_link = child.url end
             end
         end
     end
+
+    reaper.ImGui_PopTextWrapPos(ctx)
 end
 
 --- Render table
@@ -971,6 +1036,9 @@ function Renderer.render_node(ctx, node, fonts, state)
 
     elseif node_type == NT.ITALIC then
         render_italic(ctx, node, fonts, state)
+
+    elseif node_type == NT.STRIKE then
+        render_strike(ctx, node, fonts, state)
 
     elseif node_type == NT.CODE_INLINE then
         render_code_inline(ctx, node, fonts, state)

@@ -1,49 +1,53 @@
 # ReaMD .gitignore
+# Goal: keep the public repo to clean code + ReaPack metadata + public docs/screenshots only.
 
-# macOS
-.DS_Store
-
-# Claude session files
-.claude/
-thoughts/
-
-# Draft files
-docs/FORUM_POST.txt
-
-# Temp files from AI Parser
-*.request
-*.response
-*.sh.tmp
-ai_parse_*.sh
-
-# macOS
+# ─── OS / editor cruft ─────────────────────────────────────────────────────
 .DS_Store
 .AppleDouble
 .LSOverride
-
-# Windows
 Thumbs.db
 ehthumbs.db
 Desktop.ini
-
-# IDE / Editor
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
 
-# Development/Session files
+# ─── Local working state (never push) ──────────────────────────────────────
+.claude/
 thoughts/
+.tldr/
+.tldrignore
 *.log
-
-# Backup files
 *.bak
 *.backup
 *.orig
 
-# User configuration (API keys stored in Reaper ExtState, not files)
-# But just in case someone creates local config:
+# ─── Forum / draft / private notes ─────────────────────────────────────────
+# We use docs/FORUM_*.txt locally as scratchpads for REAPER forum replies.
+# They are not part of the published package.
+docs/FORUM_POST.txt
+docs/FORUM_POST_*.txt
+docs/FORUM_UPDATE_*.txt
+docs/DRAFT_*
+docs/PRIVATE_*
+docs/NOTES_*
+
+# ─── AI Parse temp files (written to $TMPDIR, but in case any leak here) ──
+*.request
+*.response
+*.sh.tmp
+ai_parse_*.sh
+ai_parse_*.bat
+reamd_ai_response_*
+
+# ─── Local config / secrets (paranoid catch-all) ───────────────────────────
+# API keys are stored in REAPER ExtState, never in repo files. These patterns
+# exist in case a user creates a side-config file by hand.
 config.local.lua
 *.secret
 *.key
+*.pem
+.env
+.env.*

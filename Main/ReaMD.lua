@@ -1,7 +1,31 @@
 -- @description ReaMD - Dockable Markdown Viewer for REAPER
 -- @author b4s1c
--- @version 1.0.3
+-- @version 1.1.0
 -- @changelog
+--   v1.1.0 (2026-05-27)
+--   + Search inside document (Ctrl+F) with next/prev navigation
+--   + Cue List floating panel — sorted fragment list, click to jump
+--   + Export linked fragments to REAPER regions (Scenario > Tools menu)
+--   + Auto-Link by name — matches headings AND table rows against item take
+--     names + region names (Scenario > Tools menu)
+--   + time://HH:MM:SS links jump REAPER edit cursor on click
+--   + AI Parse: model selector (Haiku/Sonnet/Opus) + better error messages
+--   + AI Parse: Windows support (.bat launcher in addition to .sh)
+--   + AI Parse: result preview is editable before Save As
+--   + Strikethrough (~~text~~) parsing and rendering
+--   + Keyboard shortcuts: Ctrl+F search, Ctrl+S save, Ctrl+O open, Ctrl+E edit
+--   + Window title shows unsaved-changes asterisk
+--   + Welcome screen with action buttons + recent files
+--   + Font size slider in settings
+--   + Auto-save scenario .reamd file on every change
+--   * Fix table cells: long content now wraps to cell width instead of
+--     overflowing (was the most visible rendering glitch)
+--   * Fix table parsing: escaped \| and consecutive | no longer produce
+--     phantom empty cells
+--   * Fix code blocks: long lines now scroll horizontally
+--   * Fix heading highlight height — scales with actual heading font size
+--   * Link hover shows the URL as tooltip
+--   * Table cells now render italic and inline code (was silently skipped)
 --   v1.0.3 (2026-01-11)
 --   * Fix ImGui ID conflict when recent files have same filename
 --   * Fix settings (theme, etc.) not persisting after restart
@@ -27,6 +51,7 @@
 --   [nomain] ../Libs/md_renderer.lua
 --   [nomain] ../Libs/scenario_engine.lua
 --   [nomain] ../Libs/teleprompter.lua
+--   [nomain] ../Libs/cue_list.lua
 --   [nomain] ../Libs/utils.lua
 --   [data] ../prompts/ai_format_prompt.txt
 -- @link GitHub https://github.com/b451c/ReaMD
@@ -109,6 +134,7 @@ local ScenarioEngine = require('scenario_engine')
 local json = require('json')
 local Teleprompter = require('teleprompter')
 local AIParser = require('ai_parser')
+local CueList = require('cue_list')
 
 -- ===============================================================================
 -- CONSTANTS
@@ -159,7 +185,93 @@ local state = {
 
     -- Settings UI state
     show_api_key = false,  -- Toggle for API key visibility in settings
+
+    -- In-document search (Ctrl+F)
+    search_visible = false,
+    search_query = "",
+    search_matches = nil,          -- Array of block-line numbers
+    search_idx = 0,                -- 1-based index into search_matches
+    search_focus_next_frame = false,
+
+    -- One-shot: focus the markdown editor InputText on the next frame
+    -- (used after "New > Markdown" to fix "I can't type" UX).
+    focus_editor_next_frame = false,
 }
+
+-- ===============================================================================
+-- IN-DOCUMENT SEARCH
+-- ===============================================================================
+
+--- Map a raw line number to the line_start of the block-level AST node that
+-- contains it. The renderer records positions per node, not per raw line,
+-- so we need this to scroll-and-highlight a meaningful chunk.
+local function find_block_line(line)
+    local ast = state.parsed_ast
+    if not ast or not ast.children then return line end
+    for _, node in ipairs(ast.children) do
+        local s = node.line_start or 1
+        local e = node.line_end or s
+        if line >= s and line <= e then
+            return s
+        end
+    end
+    return line
+end
+
+--- Rebuild the matches array from the current query.
+local function rebuild_search_matches()
+    state.search_matches = {}
+    state.search_idx = 0
+
+    local q = state.search_query
+    if not q or q == "" then return end
+    if not state.markdown_content or state.markdown_content == "" then return end
+
+    local needle = q:lower()
+    local line_num = 1
+    -- Trailing newline ensures the last line is yielded even without one
+    for line in (state.markdown_content .. "\n"):gmatch("([^\n]*)\n") do
+        if line:lower():find(needle, 1, true) then
+            local block_line = find_block_line(line_num)
+            -- Avoid duplicates from multiple raw lines mapping to same block
+            if state.search_matches[#state.search_matches] ~= block_line then
+                table.insert(state.search_matches, block_line)
+            end
+        end
+        line_num = line_num + 1
+    end
+
+    if #state.search_matches > 0 then
+        state.search_idx = 1
+        state.scroll_to_line = state.search_matches[1]
+    end
+end
+
+local function search_next()
+    local n = state.search_matches and #state.search_matches or 0
+    if n == 0 then return end
+    state.search_idx = (state.search_idx % n) + 1
+    state.scroll_to_line = state.search_matches[state.search_idx]
+end
+
+local function search_prev()
+    local n = state.search_matches and #state.search_matches or 0
+    if n == 0 then return end
+    state.search_idx = ((state.search_idx - 2 + n) % n) + 1
+    state.scroll_to_line = state.search_matches[state.search_idx]
+end
+
+local function search_close()
+    state.search_visible = false
+    state.search_query = ""
+    state.search_matches = nil
+    state.search_idx = 0
+end
+
+local function search_open()
+    state.search_visible = true
+    state.search_focus_next_frame = true
+end
 
 -- ===============================================================================
 -- FONT SETUP
@@ -520,6 +632,44 @@ local function scroll_to_anchor(anchor)
     show_status("Anchor not found: #" .. anchor)
 end
 
+--- Parse a time spec string into seconds.
+-- Accepts:
+--   HH:MM:SS(.ms), MM:SS(.ms), SS(.ms)
+-- Examples: "1:23:45", "2:30", "12.5", "90"
+-- @param s string: Time spec
+-- @return number|nil: Seconds, or nil if unparseable
+local function parse_time_spec(s)
+    if not s or s == "" then return nil end
+    -- HH:MM:SS(.ms)
+    local h, m, sec = s:match("^(%d+):(%d+):([%d%.]+)$")
+    if h then
+        local sn = tonumber(sec)
+        if sn then return tonumber(h) * 3600 + tonumber(m) * 60 + sn end
+    end
+    -- MM:SS(.ms)
+    local m2, s2 = s:match("^(%d+):([%d%.]+)$")
+    if m2 then
+        local sn = tonumber(s2)
+        if sn then return tonumber(m2) * 60 + sn end
+    end
+    -- Plain seconds (int or float)
+    local n = tonumber(s)
+    return n
+end
+
+--- Format seconds as MM:SS (or HH:MM:SS if >= 1 hour) for status display.
+local function format_time_pretty(seconds)
+    if not seconds then return "?" end
+    local total = math.floor(seconds + 0.5)
+    local h = math.floor(total / 3600)
+    local m = math.floor((total % 3600) / 60)
+    local s = total % 60
+    if h > 0 then
+        return string.format("%d:%02d:%02d", h, m, s)
+    end
+    return string.format("%d:%02d", m, s)
+end
+
 --- Handle a clicked link
 -- @param url string: URL that was clicked
 local function handle_link_click(url)
@@ -531,6 +681,17 @@ local function handle_link_click(url)
         -- Internal anchor - scroll to heading
         local anchor = url:sub(2)
         scroll_to_anchor(anchor)
+
+    elseif url:match("^time://") then
+        -- Custom scheme: jump REAPER edit cursor to a timestamp
+        local spec = url:sub(8)  -- strip "time://"
+        local seconds = parse_time_spec(spec)
+        if seconds then
+            reaper.SetEditCurPos(seconds, true, false)  -- moveview=true, seekplay=false
+            show_status("Jumped to " .. format_time_pretty(seconds))
+        else
+            show_status("Invalid time link: " .. url)
+        end
 
     elseif url:match("^https?://") then
         -- External URL
@@ -666,6 +827,9 @@ local function render_toolbar()
             state.edit_changed = false
             state.scenario_enabled = false
             state.highlight_lines = nil
+            -- Auto-focus the editor so the user can start typing immediately
+            -- (without this, REAPER captures the keys as global shortcuts)
+            state.focus_editor_next_frame = true
             show_status("New markdown - edit and save")
         end
 
@@ -732,6 +896,7 @@ local function render_toolbar()
         local was_editing = state.edit_mode
         state.edit_mode = not state.edit_mode
         if state.edit_mode then
+            state.focus_editor_next_frame = true  -- auto-focus the InputText
             show_status("Edit mode: modify text, click Save")
         else
             -- Exiting edit mode: re-parse if content was changed
@@ -752,6 +917,28 @@ local function render_toolbar()
             save_markdown_file()
         end
         reaper.ImGui_PopStyleColor(ctx)
+        if reaper.ImGui_IsItemHovered(ctx) then
+            reaper.ImGui_SetTooltip(ctx, "Save changes to disk (Ctrl+S)")
+        end
+    end
+
+    -- "AI Parse" shortcut: when in edit mode, lets the user format the current
+    -- editor contents without copy-pasting into the AI Parse window.
+    if state.edit_mode and state.markdown_content and state.markdown_content ~= "" then
+        reaper.ImGui_SameLine(ctx)
+        reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Button(), 0x0E639CFF)
+        if reaper.ImGui_Button(ctx, "AI Parse") then
+            AIParser.state.input_text = state.markdown_content
+            AIParser.state.result_markdown = nil
+            AIParser.state.error_message = nil
+            AIParser.state.show_window = true
+        end
+        reaper.ImGui_PopStyleColor(ctx)
+        if reaper.ImGui_IsItemHovered(ctx) then
+            reaper.ImGui_SetTooltip(ctx,
+                "Send current editor content to Claude for formatting.\n" ..
+                "Result can be applied to the editor or saved as a new file.")
+        end
     end
 
     -- Live Preview toggle (only visible in edit mode)
@@ -808,6 +995,75 @@ local function render_toolbar()
                 show_status("No file loaded")
             end
         end
+        if reaper.ImGui_IsItemHovered(ctx) then
+            reaper.ImGui_SetTooltip(ctx, "Save the fragment-to-item map to <file>.md.reamd")
+        end
+
+        reaper.ImGui_SameLine(ctx)
+
+        -- Scenario Tools menu (Auto-Link, Export to Regions)
+        if reaper.ImGui_Button(ctx, "Tools") then
+            reaper.ImGui_OpenPopup(ctx, "scenario_tools_menu")
+        end
+        if reaper.ImGui_BeginPopup(ctx, "scenario_tools_menu") then
+            if reaper.ImGui_MenuItem(ctx, "Auto-Link by name") then
+                if state.parsed_ast then
+                    local items_n = ScenarioEngine.auto_link_by_item_name(state.parsed_ast)
+                    local regions_n = ScenarioEngine.auto_link_by_name(state.parsed_ast)
+                    local total = items_n + regions_n
+                    if total > 0 and state.file_path and state.content_hash then
+                        ScenarioEngine.save_mapping(state.file_path, state.content_hash)
+                    end
+                    if total > 0 then
+                        show_status(string.format(
+                            "Linked %d (%d items, %d regions)",
+                            total, items_n, regions_n))
+                    else
+                        show_status("No matches found (check heading/row text vs take/region names)")
+                    end
+                else
+                    show_status("Load a markdown file first")
+                end
+            end
+            if reaper.ImGui_IsItemHovered(ctx) then
+                reaper.ImGui_SetTooltip(ctx,
+                    "Match heading/row text against take names AND region names.\n" ..
+                    "Skips lines that already have links.")
+            end
+
+            if reaper.ImGui_MenuItem(ctx, "Export linked fragments to regions") then
+                local n = ScenarioEngine.export_to_regions()
+                if n > 0 then
+                    show_status("Created " .. n .. " region(s)")
+                else
+                    show_status("Nothing to export (no fragments with resolvable items)")
+                end
+            end
+            if reaper.ImGui_IsItemHovered(ctx) then
+                reaper.ImGui_SetTooltip(ctx,
+                    "Creates a REAPER region per linked fragment, named with the fragment's identifier and colored by category.")
+            end
+
+            reaper.ImGui_EndPopup(ctx)
+        end
+
+        reaper.ImGui_SameLine(ctx)
+
+        -- Cue List toggle
+        local cue_active = CueList.is_visible()
+        local cue_label = cue_active and "Cue: ON" or "Cue"
+        if cue_active then
+            reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Button(), 0x66AA66FF)
+        end
+        if reaper.ImGui_Button(ctx, cue_label) then
+            CueList.toggle()
+            Config.set("cue_list_visible", CueList.is_visible())
+            Config.save()
+        end
+        if cue_active then reaper.ImGui_PopStyleColor(ctx) end
+        if reaper.ImGui_IsItemHovered(ctx) then
+            reaper.ImGui_SetTooltip(ctx, "Sortable cue list of all linked fragments")
+        end
 
         reaper.ImGui_SameLine(ctx)
 
@@ -822,6 +1078,9 @@ local function render_toolbar()
         end
         if tp_active then
             reaper.ImGui_PopStyleColor(ctx)
+        end
+        if reaper.ImGui_IsItemHovered(ctx) then
+            reaper.ImGui_SetTooltip(ctx, "Toggle teleprompter overlay")
         end
     end
 
@@ -844,9 +1103,13 @@ local function render_toolbar()
     -- New line for file info
     reaper.ImGui_SetCursorPosX(ctx, TOOLBAR_PADDING)
 
-    -- File name
+    -- File name (with unsaved-changes asterisk and hover-for-full-path)
     if state.file_name then
-        reaper.ImGui_TextDisabled(ctx, state.file_name)
+        local star = (state.edit_mode and state.edit_changed) and "*" or ""
+        reaper.ImGui_TextDisabled(ctx, star .. state.file_name)
+        if state.file_path and reaper.ImGui_IsItemHovered(ctx) then
+            reaper.ImGui_SetTooltip(ctx, state.file_path)
+        end
         if state.status_message then
             reaper.ImGui_SameLine(ctx)
         end
@@ -855,6 +1118,70 @@ local function render_toolbar()
     -- Status message
     if state.status_message then
         reaper.ImGui_TextColored(ctx, 0x88CC88FF, " - " .. state.status_message)
+    end
+
+    reaper.ImGui_Separator(ctx)
+end
+
+--- Render the in-document search bar (visible after Ctrl+F).
+local function render_search_bar()
+    if not state.search_visible then return end
+
+    local PAD = 8
+    reaper.ImGui_SetCursorPosX(ctx, reaper.ImGui_GetCursorPosX(ctx) + PAD)
+
+    reaper.ImGui_Text(ctx, "Find:")
+    reaper.ImGui_SameLine(ctx)
+
+    reaper.ImGui_SetNextItemWidth(ctx, 260)
+    if state.search_focus_next_frame then
+        reaper.ImGui_SetKeyboardFocusHere(ctx)
+        state.search_focus_next_frame = false
+    end
+
+    local flags = reaper.ImGui_InputTextFlags_EnterReturnsTrue()
+    local prev_q = state.search_query or ""
+    local enter_pressed, new_q = reaper.ImGui_InputText(ctx, "##search_q", prev_q, flags)
+
+    -- Detect text change by comparing (EnterReturnsTrue only fires on Enter,
+    -- not on every keystroke, so we need this manual diff).
+    if new_q ~= prev_q then
+        state.search_query = new_q
+        rebuild_search_matches()
+    end
+
+    if enter_pressed then
+        search_next()
+        state.search_focus_next_frame = true  -- re-focus input
+    end
+
+    -- Match counter / status
+    reaper.ImGui_SameLine(ctx)
+    local total = state.search_matches and #state.search_matches or 0
+    if total > 0 then
+        reaper.ImGui_TextDisabled(ctx, string.format("%d / %d", state.search_idx, total))
+    elseif state.search_query and state.search_query ~= "" then
+        reaper.ImGui_TextColored(ctx, 0xCC6666FF, "no matches")
+    else
+        reaper.ImGui_TextDisabled(ctx, "  ")
+    end
+
+    -- Prev / Next / Close
+    reaper.ImGui_SameLine(ctx)
+    if reaper.ImGui_SmallButton(ctx, "<##sp") then search_prev() end
+    if reaper.ImGui_IsItemHovered(ctx) then
+        reaper.ImGui_SetTooltip(ctx, "Previous match (Shift+F3)")
+    end
+    reaper.ImGui_SameLine(ctx, 0, 2)
+    if reaper.ImGui_SmallButton(ctx, ">##sn") then search_next() end
+    if reaper.ImGui_IsItemHovered(ctx) then
+        reaper.ImGui_SetTooltip(ctx, "Next match (Enter / F3)")
+    end
+
+    reaper.ImGui_SameLine(ctx, 0, 8)
+    if reaper.ImGui_SmallButton(ctx, "X##sc") then search_close() end
+    if reaper.ImGui_IsItemHovered(ctx) then
+        reaper.ImGui_SetTooltip(ctx, "Close search (Esc)")
     end
 
     reaper.ImGui_Separator(ctx)
@@ -912,6 +1239,13 @@ local function render_content()
                     end
 
                     local editor_w = reaper.ImGui_GetContentRegionAvail(ctx)
+                    -- Auto-focus when entering edit mode (after New > Markdown
+                    -- or "New Markdown" welcome button). Without this, REAPER
+                    -- captures keystrokes as global action shortcuts.
+                    if state.focus_editor_next_frame then
+                        reaper.ImGui_SetKeyboardFocusHere(ctx)
+                        state.focus_editor_next_frame = false
+                    end
                     local changed, new_text = reaper.ImGui_InputTextMultiline(
                         ctx,
                         "##edit_text",
@@ -967,6 +1301,10 @@ local function render_content()
                     reaper.ImGui_PushFont(ctx, fonts.code, fonts.sizes.code)
                 end
 
+                if state.focus_editor_next_frame then
+                    reaper.ImGui_SetKeyboardFocusHere(ctx)
+                    state.focus_editor_next_frame = false
+                end
                 local changed, new_text = reaper.ImGui_InputTextMultiline(
                     ctx,
                     "##edit_text",
@@ -988,11 +1326,34 @@ local function render_content()
 
         elseif state.parsed_ast then
             -- NORMAL MODE: Render formatted markdown
+
+            -- Merge scenario highlights with search highlights for this frame.
+            -- Search matches use a distinct color (yellow/orange) so they don't
+            -- visually clash with category colors when both apply.
+            local merged_highlights = nil
+            if state.highlight_lines or (state.search_matches and #state.search_matches > 0) then
+                merged_highlights = {}
+                if state.highlight_lines then
+                    for k, v in pairs(state.highlight_lines) do
+                        merged_highlights[k] = v
+                    end
+                end
+                if state.search_matches then
+                    for i, line in ipairs(state.search_matches) do
+                        if not merged_highlights[line] then
+                            -- Current match: orange. Other matches: pale yellow.
+                            merged_highlights[line] = (i == state.search_idx)
+                                and 0xFF990088 or 0xFFEE0044
+                        end
+                    end
+                end
+            end
+
             -- Create render state
             local render_state = {
                 scroll_y = state.scroll_y,
                 scroll_to_line = state.scroll_to_line,
-                highlight_lines = state.highlight_lines,
+                highlight_lines = merged_highlights,
                 clicked_link = nil,
                 -- Scenario mode state
                 scenario_enabled = state.scenario_enabled,
@@ -1019,21 +1380,81 @@ local function render_content()
                 state.clicked_link = render_state.clicked_link
             end
 
-            -- Save mapping if scenario changed
+            -- Auto-persist scenario edits: project ExtState (session) + .reamd
+            -- sidecar file (portable). save_to_file is a no-op when there are
+            -- no fragments, so this is cheap.
             if render_state.scenario_changed and state.file_path and state.content_hash then
                 ScenarioEngine.save_mapping(state.file_path, state.content_hash)
+                ScenarioEngine.save_to_file(state.file_path)
             end
         else
-            -- No file loaded - show welcome message
-            reaper.ImGui_TextWrapped(ctx,
-                "Welcome to ReaMD!\n\n" ..
-                "Open a Markdown file or create a new one to get started.\n\n" ..
-                "Features:\n" ..
-                "- Full markdown rendering (headers, lists, tables, code)\n" ..
-                "- Scenario Mode: link text fragments to timeline items\n" ..
-                "- Teleprompter: auto-scrolling display for voiceover\n" ..
-                "- AI Parse: format unstructured text with Claude\n"
-            )
+            -- ────────────────────────────────────────────────────────────
+            -- Welcome screen (no file loaded)
+            -- ────────────────────────────────────────────────────────────
+            if fonts.h2 then
+                reaper.ImGui_PushFont(ctx, fonts.h2, fonts.sizes.h2 or 20)
+            end
+            reaper.ImGui_TextColored(ctx, 0x3366CCFF, "ReaMD")
+            if fonts.h2 then reaper.ImGui_PopFont(ctx) end
+
+            reaper.ImGui_TextDisabled(ctx, "Markdown viewer for REAPER — for VO, post-prod, podcasts.")
+            reaper.ImGui_Spacing(ctx); reaper.ImGui_Separator(ctx); reaper.ImGui_Spacing(ctx)
+
+            -- Quick actions row
+            if reaper.ImGui_Button(ctx, "Open File...##welcome", 140, 30) then
+                open_file_dialog()
+            end
+            reaper.ImGui_SameLine(ctx)
+            if reaper.ImGui_Button(ctx, "New Markdown##welcome", 140, 30) then
+                state.markdown_content = ""
+                state.parsed_ast = nil
+                state.file_path = nil
+                state.file_name = "Untitled.md"
+                state.is_new_file = true
+                state.edit_mode = true
+                state.edit_changed = false
+                state.scenario_enabled = false
+                state.highlight_lines = nil
+                state.focus_editor_next_frame = true
+                show_status("New markdown - edit and save")
+            end
+            reaper.ImGui_SameLine(ctx)
+            if reaper.ImGui_Button(ctx, "AI Parse...##welcome", 140, 30) then
+                AIParser.show()
+            end
+
+            reaper.ImGui_Spacing(ctx)
+
+            -- Recent files (top 5)
+            local recent = Config.get_recent_files()
+            local shown_recent = 0
+            for _, path in ipairs(recent) do
+                if shown_recent >= 5 then break end
+                local f = io.open(path, "r")
+                if f then
+                    f:close()
+                    shown_recent = shown_recent + 1
+                    if shown_recent == 1 then
+                        reaper.ImGui_TextDisabled(ctx, "Recent files:")
+                    end
+                    local name = path:match("([^/\\]+)$") or path
+                    if reaper.ImGui_Selectable(ctx, "  " .. name .. "##recent" .. path, false) then
+                        load_markdown_file(path)
+                    end
+                    if reaper.ImGui_IsItemHovered(ctx) then
+                        reaper.ImGui_SetTooltip(ctx, path)
+                    end
+                end
+            end
+
+            reaper.ImGui_Spacing(ctx); reaper.ImGui_Separator(ctx); reaper.ImGui_Spacing(ctx)
+            reaper.ImGui_TextDisabled(ctx, "Features:")
+            reaper.ImGui_BulletText(ctx, "Full markdown rendering (headers, lists, tables, code, strikethrough)")
+            reaper.ImGui_BulletText(ctx, "Scenario Mode — link headings/rows to timeline items")
+            reaper.ImGui_BulletText(ctx, "Teleprompter — auto-scrolling VO display")
+            reaper.ImGui_BulletText(ctx, "AI Parse — format messy text with Claude")
+            reaper.ImGui_BulletText(ctx, "time:// links jump REAPER edit cursor")
+            reaper.ImGui_BulletText(ctx, "Search (Ctrl+F), keyboard shortcuts (Ctrl+S/O/E)")
         end
 
         if fonts.normal then
@@ -1081,6 +1502,17 @@ local function render_settings_panel()
                 end
             end
             reaper.ImGui_EndCombo(ctx)
+        end
+
+        -- Font size slider (applies to next frame; fonts rebuild via setup_fonts
+        -- on save/close)
+        local cur_size = Config.get("font_size") or 14
+        local font_changed, new_size = reaper.ImGui_SliderInt(ctx, "Font size", cur_size, 10, 24)
+        if font_changed then
+            Config.set("font_size", new_size)
+        end
+        if reaper.ImGui_IsItemHovered(ctx) then
+            reaper.ImGui_SetTooltip(ctx, "Base font size. Headings scale relative to this.\nReopen the script (or reload fonts) to apply.")
         end
 
         reaper.ImGui_Spacing(ctx)
@@ -1142,6 +1574,34 @@ local function render_settings_panel()
         reaper.ImGui_SameLine(ctx)
         if reaper.ImGui_Button(ctx, show_key and "Hide" or "Show") then
             state.show_api_key = not state.show_api_key
+        end
+
+        -- Model selector
+        local MODELS = {
+            {id = "claude-haiku-4-5-20251001",  label = "Haiku 4.5  (fast, cheap)"},
+            {id = "claude-sonnet-4-6",          label = "Sonnet 4.6 (balanced)"},
+            {id = "claude-opus-4-7",            label = "Opus 4.7   (highest quality)"},
+        }
+        local current_model = Config.get("ai_model") or MODELS[1].id
+        local current_label = MODELS[1].label
+        for _, m in ipairs(MODELS) do
+            if m.id == current_model then current_label = m.label; break end
+        end
+
+        reaper.ImGui_SetNextItemWidth(ctx, 220)
+        if reaper.ImGui_BeginCombo(ctx, "Model", current_label) then
+            for _, m in ipairs(MODELS) do
+                local is_selected = (m.id == current_model)
+                if reaper.ImGui_Selectable(ctx, m.label, is_selected) then
+                    Config.set("ai_model", m.id)
+                end
+                if is_selected then reaper.ImGui_SetItemDefaultFocus(ctx) end
+            end
+            reaper.ImGui_EndCombo(ctx)
+        end
+        if reaper.ImGui_IsItemHovered(ctx) then
+            reaper.ImGui_SetTooltip(ctx,
+                "Haiku = cheapest, ~2-5s\nSonnet = balanced quality\nOpus = best for tricky structure")
         end
 
         -- Edit Prompt button
@@ -1216,16 +1676,27 @@ local function render_ai_parse_window()
         local text_height = avail_h - 100  -- Reserve space for buttons
 
         if AIParser.state.is_loading then
-            -- Show loading indicator
+            -- Loading indicator (read-only)
             reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_FrameBg(), 0x2A2A2AFF)
             local elapsed = math.floor(reaper.time_precise() - AIParser.state.start_time)
-            local _, _ = reaper.ImGui_InputTextMultiline(ctx, "##ai_input",
+            reaper.ImGui_InputTextMultiline(ctx, "##ai_input",
                 "Processing... (" .. elapsed .. "s)\n\nPlease wait...",
                 avail_w, text_height,
                 reaper.ImGui_InputTextFlags_ReadOnly())
             reaper.ImGui_PopStyleColor(ctx)
+        elseif AIParser.state.result_markdown then
+            -- Show the AI-formatted result so the user can review before saving.
+            -- Read-only multiline preserves formatting and lets user select/copy.
+            reaper.ImGui_TextDisabled(ctx, "Result preview (editable before save):")
+            local res_changed, new_result = reaper.ImGui_InputTextMultiline(ctx, "##ai_result",
+                AIParser.state.result_markdown,
+                avail_w, text_height - 18,
+                reaper.ImGui_InputTextFlags_AllowTabInput())
+            if res_changed then
+                AIParser.state.result_markdown = new_result
+            end
         else
-            -- Editable input
+            -- Editable input for the source text
             local changed, new_text = reaper.ImGui_InputTextMultiline(ctx, "##ai_input",
                 AIParser.state.input_text,
                 avail_w, text_height,
@@ -1260,6 +1731,24 @@ local function render_ai_parse_window()
             reaper.ImGui_Text(ctx, "Processing" .. dots)
 
         elseif AIParser.state.result_markdown then
+            -- Result available — show "Apply to Editor" if we came from edit mode
+            if state.edit_mode then
+                reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Button(), 0xCC9933FF)
+                if reaper.ImGui_Button(ctx, "Apply to Editor") then
+                    state.markdown_content = AIParser.state.result_markdown
+                    state.edit_changed = true
+                    state.parsed_ast = Parser.parse(state.markdown_content)
+                    AIParser.hide()
+                    show_status("AI-formatted text applied to editor")
+                end
+                reaper.ImGui_PopStyleColor(ctx)
+                if reaper.ImGui_IsItemHovered(ctx) then
+                    reaper.ImGui_SetTooltip(ctx,
+                        "Replace the current editor contents with the formatted result.\n" ..
+                        "Don't forget to Save after.")
+                end
+                reaper.ImGui_SameLine(ctx)
+            end
             -- Result available - show Save button
             reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Button(), 0x33CC33FF)
             if reaper.ImGui_Button(ctx, "Save As...") then
@@ -1347,6 +1836,68 @@ local function render_ai_parse_window()
 end
 
 -- ===============================================================================
+-- KEYBOARD SHORTCUTS
+-- ===============================================================================
+
+--- Process global keyboard shortcuts when the main window has focus.
+-- Uses IsKeyChordPressed where available (ReaImGui v0.10+), falls back
+-- gracefully on older builds.
+local function handle_shortcuts()
+    if not reaper.ImGui_IsKeyChordPressed
+       or not reaper.ImGui_Mod_Ctrl then
+        return  -- API too old; skip silently rather than erroring
+    end
+
+    local ctrl  = reaper.ImGui_Mod_Ctrl()
+    local shift = reaper.ImGui_Mod_Shift()
+
+    -- Ctrl+F: open search
+    if reaper.ImGui_IsKeyChordPressed(ctx, ctrl + reaper.ImGui_Key_F()) then
+        search_open()
+    end
+
+    -- Ctrl+S: save (only meaningful in edit mode with changes — but allow it
+    -- anyway and let save_markdown_file no-op if nothing changed).
+    if reaper.ImGui_IsKeyChordPressed(ctx, ctrl + reaper.ImGui_Key_S()) then
+        if state.markdown_content and state.markdown_content ~= "" then
+            save_markdown_file()
+        end
+    end
+
+    -- Ctrl+O: open file
+    if reaper.ImGui_IsKeyChordPressed(ctx, ctrl + reaper.ImGui_Key_O()) then
+        open_file_dialog()
+    end
+
+    -- Ctrl+E: toggle edit mode
+    if reaper.ImGui_IsKeyChordPressed(ctx, ctrl + reaper.ImGui_Key_E()) then
+        local was_editing = state.edit_mode
+        state.edit_mode = not state.edit_mode
+        if state.edit_mode then
+            state.focus_editor_next_frame = true
+        elseif was_editing and state.edit_changed and state.markdown_content then
+            state.parsed_ast = Parser.parse(state.markdown_content)
+        end
+    end
+
+    -- Search-only shortcuts
+    if state.search_visible then
+        -- Esc: close
+        if reaper.ImGui_IsKeyPressed(ctx, reaper.ImGui_Key_Escape()) then
+            search_close()
+        end
+        -- F3: next, Shift+F3: prev
+        if reaper.ImGui_IsKeyChordPressed(ctx, shift + reaper.ImGui_Key_F3()) then
+            search_prev()
+            state.search_focus_next_frame = true
+        elseif reaper.ImGui_IsKeyPressed(ctx, reaper.ImGui_Key_F3()) then
+            search_next()
+            state.search_focus_next_frame = true
+        end
+    end
+end
+
+-- ===============================================================================
 -- MAIN LOOP
 -- ===============================================================================
 
@@ -1362,11 +1913,27 @@ local function main_loop()
     reaper.ImGui_SetNextWindowSizeConstraints(ctx, MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT,
         math.huge, math.huge)
 
-    local visible, open = reaper.ImGui_Begin(ctx, WINDOW_TITLE, true, WINDOW_FLAGS)
+    -- Window title shows unsaved-changes asterisk and current filename.
+    -- The '###reamd_main' suffix is the stable ImGui ID — keeps docking/size
+    -- state across title changes.
+    local window_title = WINDOW_TITLE
+    if state.file_name then
+        local star = (state.edit_mode and state.edit_changed) and "*" or ""
+        window_title = WINDOW_TITLE .. " - " .. star .. state.file_name
+    end
+    local imgui_id = window_title .. "###reamd_main"
+
+    local visible, open = reaper.ImGui_Begin(ctx, imgui_id, true, WINDOW_FLAGS)
 
     if visible then
+        -- Handle keyboard shortcuts while the main window has focus
+        handle_shortcuts()
+
         -- Render toolbar
         render_toolbar()
+
+        -- Optional in-document search bar (toggled by Ctrl+F)
+        render_search_bar()
 
         -- Render main content
         render_content()
@@ -1381,6 +1948,13 @@ local function main_loop()
 
     -- Render AI Parse window (separate floating window)
     render_ai_parse_window()
+
+    -- Render Cue List (separate floating window). Visible only when scenario data exists.
+    CueList.render(ctx, ScenarioEngine, function(frag)
+        if frag and frag.line_start then
+            state.scroll_to_line = frag.line_start
+        end
+    end)
 
     -- Pop theme colors at end of frame
     pop_theme()
@@ -1449,6 +2023,11 @@ local function init()
 
     -- Initialize AI parser
     AIParser.init(Utils, Config, json, project_dir)
+
+    -- Restore Cue List visibility from last session
+    if Config.get("cue_list_visible") then
+        CueList.show()
+    end
 
     return true
 end

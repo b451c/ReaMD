@@ -66,12 +66,27 @@ Click **Show** to verify the key was entered correctly, then **Hide** again.
 
 ### Basic Usage
 
+There are two entry points:
+
+**A — Standalone (no file open):**
+
 1. Click **New → AI Parse...** in the toolbar
-2. Paste your unformatted text in the text area
+2. Paste your unformatted text
 3. Click **Parse with AI**
 4. Wait for processing (typically 2-5 seconds)
-5. Review the result
-6. Click **Save As...** to save the formatted markdown
+5. Review the editable result preview
+6. Click **Save As...** to save it as a new markdown file (it auto-loads)
+
+**B — From the editor (v1.1.0+):**
+
+1. Open or create a markdown, enter edit mode
+2. Paste raw text directly into the editor
+3. Click the orange **AI Parse** button in the toolbar — it sends the current
+   editor content to Claude
+4. After the result appears, choose:
+   - **Apply to Editor** — replaces the current content with the formatted result
+     (don't forget **Save** after)
+   - **Save As...** — saves as a separate new file
 
 ### Example
 
@@ -183,31 +198,41 @@ Guidelines:
 
 ### Windows-specific issues
 
-- Ensure `curl.exe` is available (Windows 10 build 17063+)
-- Try running `curl --version` in Command Prompt
-- For older Windows, install curl from [curl.se](https://curl.se/windows/)
+- v1.1.0+ uses a `.bat` launcher (was bash-only before, which broke on Windows).
+- Ensure `curl.exe` is on `PATH` (built into Windows 10 build 17063+).
+- Try running `curl --version` in Command Prompt to verify.
+- For older Windows, install curl from [curl.se](https://curl.se/windows/).
 
 ---
 
 ## API Usage & Costs
 
-### Model
+### Model selector (v1.1.0+)
 
-ReaMD uses **Claude Haiku** (`claude-haiku-4-5-20251001`), optimized for:
-- Fast response times (2-5 seconds)
-- Low cost
-- Good quality for formatting tasks
+ReaMD now lets you choose the Claude model in **Settings → Model**:
+
+| Choice | Model ID | When to use |
+|---|---|---|
+| **Haiku 4.5** (default) | `claude-haiku-4-5-20251001` | Fast (~2-5 s), cheapest, fine for most formatting jobs |
+| **Sonnet 4.6** | `claude-sonnet-4-6` | Balanced quality, slightly slower |
+| **Opus 4.7** | `claude-opus-4-7` | Highest quality for tricky structure (long ADR scripts, dense tables) |
+
+The model you pick is saved per-installation and used for every subsequent parse.
 
 ### Pricing (as of 2026)
 
 | Model | Input | Output |
 |-------|-------|--------|
-| Claude Haiku | $0.25/M tokens | $1.25/M tokens |
+| Claude Haiku 4.5 | $0.25/M tokens | $1.25/M tokens |
+| Claude Sonnet 4.6 | $3/M tokens | $15/M tokens |
+| Claude Opus 4.7 | $15/M tokens | $75/M tokens |
 
-**Typical usage:**
+**Typical Haiku usage:**
 - Small text (< 500 words): ~$0.0002
 - Medium text (500-2000 words): ~$0.001
 - Large text (2000+ words): ~$0.003
+
+Sonnet costs roughly 12× and Opus roughly 60× Haiku per parse — almost always still under $0.10 for a single document.
 
 ### Monitoring Usage
 

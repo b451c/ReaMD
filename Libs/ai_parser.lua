@@ -136,24 +136,103 @@ end
 -- ASYNC API CALL
 -- ═══════════════════════════════════════════════════════════════════════════
 
+-- Default model if user hasn't picked one
+local DEFAULT_MODEL = "claude-haiku-4-5-20251001"
+
+--- Detect Windows platform.
+-- @return boolean
+local function is_windows()
+    local ok, os_name = pcall(reaper.GetOS)
+    if ok and os_name and os_name:match("Win") then
+        return true
+    end
+    -- Fallback to path separator
+    return Utils.SEP == "\\"
+end
+
 --- Generate temporary file path
 -- @return string: Path for temp file
 local function get_temp_file()
-    local temp_dir = os.getenv("TMPDIR") or os.getenv("TEMP") or "/tmp"
-    return Utils.join_path(temp_dir, "reamd_ai_response_" .. os.time() .. ".json")
+    local temp_dir
+    if is_windows() then
+        temp_dir = os.getenv("TEMP") or os.getenv("TMP") or "C:\\Windows\\Temp"
+    else
+        temp_dir = os.getenv("TMPDIR") or "/tmp"
+    end
+    -- Use os.time + a random suffix to avoid collisions when user fires multiple parses quickly
+    local suffix = tostring(os.time()) .. "_" .. tostring(math.random(1000, 9999))
+    return Utils.join_path(temp_dir, "reamd_ai_response_" .. suffix .. ".json")
 end
 
---- Escape string for use in shell command
--- @param str string: String to escape
--- @return string: Escaped string
-local function shell_escape(str)
-    -- Replace backslashes first, then other special chars
-    str = str:gsub("\\", "\\\\")
-    str = str:gsub('"', '\\"')
-    str = str:gsub("\n", "\\n")
-    str = str:gsub("\r", "\\r")
-    str = str:gsub("\t", "\\t")
-    return str
+--- Validate that the API key looks plausible
+-- @param key string
+-- @return boolean, string|nil: ok, error message
+local function validate_api_key(key)
+    if not key or key == "" then
+        return false, "No API key configured. Set it in Settings."
+    end
+    if not key:match("^sk%-ant%-") then
+        return false, "API key looks invalid (expected 'sk-ant-...' format)."
+    end
+    return true
+end
+
+--- Build the request body JSON for the Anthropic Messages API
+local function build_request_body(prompt, input_text)
+    local model = (Config and Config.get and Config.get("ai_model")) or DEFAULT_MODEL
+    if not model or model == "" then model = DEFAULT_MODEL end
+    return json.encode({
+        model = model,
+        max_tokens = 8192,
+        messages = {
+            {
+                role = "user",
+                content = prompt .. "\n\n---\n\nText to format:\n\n" .. input_text
+            }
+        }
+    })
+end
+
+--- Spawn the curl process in the background, OS-aware.
+-- Returns true on apparent successful spawn (we can't truly know without polling).
+local function spawn_curl(temp_file, request_file, api_key)
+    local script_path, launch_cmd
+
+    if is_windows() then
+        script_path = temp_file .. ".bat"
+        -- Windows batch: caret (^) line continuation, double quotes around paths.
+        local script_content = string.format(
+            '@echo off\r\n' ..
+            'curl -s -o "%s" -X POST "https://api.anthropic.com/v1/messages" ^\r\n' ..
+            '  -H "Content-Type: application/json" ^\r\n' ..
+            '  -H "x-api-key: %s" ^\r\n' ..
+            '  -H "anthropic-version: 2023-06-01" ^\r\n' ..
+            '  -d @"%s"\r\n',
+            temp_file, api_key, request_file
+        )
+        local ok = Utils.write_file(script_path, script_content)
+        if not ok then return false, "Failed to create launcher script (.bat)" end
+        -- Run detached so REAPER doesn't block. start "" /B suppresses a new window.
+        launch_cmd = 'start "" /B "' .. script_path .. '"'
+    else
+        script_path = temp_file .. ".sh"
+        local script_content = string.format(
+            "#!/bin/sh\n" ..
+            'curl -s -o "%s" -X POST "https://api.anthropic.com/v1/messages" \\\n' ..
+            '  -H "Content-Type: application/json" \\\n' ..
+            '  -H "x-api-key: %s" \\\n' ..
+            '  -H "anthropic-version: 2023-06-01" \\\n' ..
+            '  -d @"%s"\n',
+            temp_file, api_key, request_file
+        )
+        local ok = Utils.write_file(script_path, script_content)
+        if not ok then return false, "Failed to create launcher script (.sh)" end
+        os.execute('chmod +x "' .. script_path .. '"')
+        launch_cmd = '"' .. script_path .. '" &'
+    end
+
+    os.execute(launch_cmd)
+    return true
 end
 
 --- Start async API call
@@ -166,30 +245,20 @@ function AIParser.start_api_call(input_text)
     end
 
     local api_key = Config.get("ai_api_key")
-    if not api_key or api_key == "" then
-        AIParser.state.error_message = "No API key configured. Set it in Settings."
+    local key_ok, key_err = validate_api_key(api_key)
+    if not key_ok then
+        AIParser.state.error_message = key_err
         return false
     end
 
     local prompt = AIParser.get_prompt()
-
-    -- Build request body
-    local request_body = json.encode({
-        model = "claude-haiku-4-5-20251001",
-        max_tokens = 8192,
-        messages = {
-            {
-                role = "user",
-                content = prompt .. "\n\n---\n\nText to format:\n\n" .. input_text
-            }
-        }
-    })
+    local request_body = build_request_body(prompt, input_text)
 
     -- Generate temp file for response
     local temp_file = get_temp_file()
     AIParser.state.temp_file = temp_file
 
-    -- Write request body to temp file (to avoid shell escaping issues)
+    -- Write request body to temp file (avoids shell escaping issues for the JSON payload)
     local request_file = temp_file .. ".request"
     local ok, err = Utils.write_file(request_file, request_body)
     if not ok then
@@ -197,26 +266,13 @@ function AIParser.start_api_call(input_text)
         return false
     end
 
-    -- Create shell script for curl (ExecProcess works better with scripts)
-    local script_file = temp_file .. ".sh"
-    local script_content = string.format([[#!/bin/bash
-curl -s -o "%s" -X POST "https://api.anthropic.com/v1/messages" \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: %s" \
-  -H "anthropic-version: 2023-06-01" \
-  -d @"%s"
-]], temp_file, api_key, request_file)
-
-    local script_ok = Utils.write_file(script_file, script_content)
-    if not script_ok then
-        AIParser.state.error_message = "Failed to create script"
+    -- Spawn the platform-appropriate launcher
+    local spawned, spawn_err = spawn_curl(temp_file, request_file, api_key)
+    if not spawned then
+        AIParser.state.error_message = spawn_err or "Failed to launch curl"
         os.remove(request_file)
         return false
     end
-
-    -- Make script executable and run it in background
-    os.execute('chmod +x "' .. script_file .. '"')
-    os.execute('"' .. script_file .. '" &')
 
     AIParser.state.is_loading = true
     AIParser.state.start_time = reaper.time_precise()
@@ -263,14 +319,19 @@ function AIParser.poll_response()
 
     local success, response = pcall(json.decode, content)
     if not success then
-        AIParser.state.error_message = "Failed to parse API response: " .. tostring(response)
+        -- Show a snippet of the bad content (helps diagnose curl / network issues)
+        local snippet = content:sub(1, 200)
+        AIParser.state.error_message =
+            "Failed to parse API response.\nFirst bytes: " .. snippet
         AIParser.cleanup_temp_files()
         return false
     end
 
-    -- Check for API error
+    -- Check for API error (Anthropic returns { type:"error", error:{type,message} })
     if response.error then
-        AIParser.state.error_message = response.error.message or "API error"
+        local et = response.error.type or "error"
+        local em = response.error.message or "(no message)"
+        AIParser.state.error_message = "API " .. et .. ": " .. em
         AIParser.cleanup_temp_files()
         return false
     end
@@ -278,8 +339,12 @@ function AIParser.poll_response()
     -- Extract markdown from response
     if response.content and response.content[1] and response.content[1].text then
         AIParser.state.result_markdown = response.content[1].text
+        -- Keep usage info for potential display (cost estimate, etc.)
+        AIParser.state.last_usage = response.usage
+        AIParser.state.last_model = response.model
     else
-        AIParser.state.error_message = "Unexpected API response format"
+        AIParser.state.error_message =
+            "Unexpected API response format (no content[].text)"
         AIParser.cleanup_temp_files()
         return false
     end
@@ -290,12 +355,13 @@ function AIParser.poll_response()
     return false
 end
 
---- Clean up temporary files
+--- Clean up temporary files (both .sh and .bat suffix variants)
 function AIParser.cleanup_temp_files()
     if AIParser.state.temp_file then
         os.remove(AIParser.state.temp_file)
         os.remove(AIParser.state.temp_file .. ".request")
         os.remove(AIParser.state.temp_file .. ".sh")
+        os.remove(AIParser.state.temp_file .. ".bat")
         AIParser.state.temp_file = nil
     end
 end

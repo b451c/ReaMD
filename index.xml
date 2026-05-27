@@ -72,6 +72,39 @@
         <source file="../Libs/utils.lua">https://github.com/b451c/ReaMD/raw/v1.0.3/Libs/utils.lua</source>
         <source type="data" file="../prompts/ai_format_prompt.txt">https://github.com/b451c/ReaMD/raw/v1.0.3/prompts/ai_format_prompt.txt</source>
       </version>
+      <version name="1.1.0" author="b4s1c" time="2026-05-27T00:00:00Z">
+        <changelog><![CDATA[+ Search inside document (Ctrl+F) with next/prev navigation
++ Cue List floating panel - sorted fragment list, click to jump
++ Export linked fragments to REAPER regions (Scenario > Tools menu)
++ Auto-Link by name now matches table rows + item take names
++ time://HH:MM:SS markdown links jump REAPER edit cursor
++ AI Parse model selector (Haiku/Sonnet/Opus) + better errors
++ AI Parse Windows support (.bat launcher)
++ AI Parse: editable result preview before Save As
++ Strikethrough (~~text~~) support
++ Keyboard shortcuts: Ctrl+F/S/O/E
++ Title shows unsaved-changes asterisk
++ New welcome screen with action buttons + recent files
++ Font size slider in settings
++ Auto-save scenario .reamd on every change
+* Fix table cells: long content wraps inside cell width
+* Fix table parsing: escaped \| and consecutive | handling
+* Fix code block: long lines scroll horizontally
+* Fix heading highlight height scales with font size
+* Table cells: italic and inline code now render
+* Link hover shows URL tooltip]]></changelog>
+        <source main="main">https://github.com/b451c/ReaMD/raw/v1.1.0/Main/ReaMD.lua</source>
+        <source file="../Libs/ai_parser.lua">https://github.com/b451c/ReaMD/raw/v1.1.0/Libs/ai_parser.lua</source>
+        <source file="../Libs/config.lua">https://github.com/b451c/ReaMD/raw/v1.1.0/Libs/config.lua</source>
+        <source file="../Libs/cue_list.lua">https://github.com/b451c/ReaMD/raw/v1.1.0/Libs/cue_list.lua</source>
+        <source file="../Libs/json.lua">https://github.com/b451c/ReaMD/raw/v1.1.0/Libs/json.lua</source>
+        <source file="../Libs/md_parser.lua">https://github.com/b451c/ReaMD/raw/v1.1.0/Libs/md_parser.lua</source>
+        <source file="../Libs/md_renderer.lua">https://github.com/b451c/ReaMD/raw/v1.1.0/Libs/md_renderer.lua</source>
+        <source file="../Libs/scenario_engine.lua">https://github.com/b451c/ReaMD/raw/v1.1.0/Libs/scenario_engine.lua</source>
+        <source file="../Libs/teleprompter.lua">https://github.com/b451c/ReaMD/raw/v1.1.0/Libs/teleprompter.lua</source>
+        <source file="../Libs/utils.lua">https://github.com/b451c/ReaMD/raw/v1.1.0/Libs/utils.lua</source>
+        <source type="data" file="../prompts/ai_format_prompt.txt">https://github.com/b451c/ReaMD/raw/v1.1.0/prompts/ai_format_prompt.txt</source>
+      </version>
     </reapack>
   </category>
   <metadata>

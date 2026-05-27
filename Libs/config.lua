@@ -23,7 +23,9 @@ Config.defaults = {
     last_directory = "",             -- Last opened folder
     recent_files = "",               -- Recent files (pipe-separated paths)
     ai_api_key = "",                 -- Anthropic API key for AI parsing
+    ai_model = "claude-haiku-4-5-20251001",  -- Claude model id for AI Parse
     live_preview = true,             -- Show live preview while editing
+    cue_list_visible = false,        -- Cue List panel visible last session
 }
 
 -- Type definitions for proper conversion from ExtState strings
@@ -39,7 +41,9 @@ local setting_types = {
     last_directory = "string",
     recent_files = "string",
     ai_api_key = "string",
+    ai_model = "string",
     live_preview = "boolean",
+    cue_list_visible = "boolean",
 }
 
 -- Current settings (initialized as copy of defaults)
