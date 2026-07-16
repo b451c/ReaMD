@@ -1343,10 +1343,19 @@ end
 --- Get markdown content without the reamd marker (for parsing)
 -- @param content string: Full file content
 -- @return string: Content without reamd marker
+--- Escape Lua-pattern magic characters in a literal string
+local function escape_pattern(s)
+    return (s:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%1"))
+end
+
 function ScenarioEngine.strip_reamd_marker(content)
     if not content then return "" end
-    local marker_pattern = "\n?\n?" .. REAMD_MARKER_START .. ".-" .. REAMD_MARKER_END
-    return content:gsub(marker_pattern, "")
+    -- The marker strings contain '-' (pattern quantifier) and must be escaped:
+    -- the unescaped concatenation never matched a real marker, so legacy
+    -- blocks were silently left in opened files. (Found by ReaProof U7.)
+    local marker_pattern = "\n?\n?" .. escape_pattern(REAMD_MARKER_START)
+        .. ".-" .. escape_pattern(REAMD_MARKER_END)
+    return (content:gsub(marker_pattern, ""))
 end
 
 --- Remove legacy embedded marker from markdown file

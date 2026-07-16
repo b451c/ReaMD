@@ -2047,6 +2047,26 @@ cleanup = function()
 end
 
 -- ===============================================================================
+-- ReaProof test seam (D26): INERT in production. When a test harness sets
+-- ExtState ReaMD_Test/enable=1 BEFORE launching this script, selected internals
+-- are exposed globally for deterministic E2E assertions (state model +
+-- file-local entry points that are otherwise unreachable/modal-gated).
+-- With the flag unset this block does nothing.
+-- ===============================================================================
+if reaper.GetExtState("ReaMD_Test", "enable") == "1" then
+    _G.ReaMD_Test = {
+        state = state,
+        load_markdown_file = load_markdown_file,
+        save_markdown_file = save_markdown_file,
+        handle_link_click = handle_link_click,
+        parse_time_spec = parse_time_spec,
+        rebuild_search_matches = rebuild_search_matches,
+        search_next = search_next,
+        search_prev = search_prev,
+    }
+end
+
+-- ===============================================================================
 -- ENTRY POINT
 -- ===============================================================================
 
