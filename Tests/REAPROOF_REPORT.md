@@ -36,3 +36,26 @@ with proper pattern escaping (`Libs/scenario_engine.lua`), guarded by
 
 Re-run: `cd Tests && lua test_parser_gaps.lua && lua test_sidecar_config.lua`
 and `PYTHONPATH=$REAPROOF/src pytest Tests/test_e2e_reaproof.py -q`.
+
+## v1.1.1 addendum (2026-10-04) — author-prefixed ExtState
+
+- `Tests/test_extstate_migration.lua` — 9 tests: settings, teleprompter
+  position and project mapping move from the bare `ReaMD*` sections to
+  `b4s1c_ReaMD*`; values already in the new section win; only our key is
+  deleted from the shared project section `ReaMD`. The ProjExtState mock
+  follows the API (an empty key wipes the section). 9/9. Mutations (whole-section
+  wipe, config migration disabled) both go red.
+- `Tests/test_e2e_reaproof.py::test_legacy_extstate_migrates_e2e` — real
+  REAPER: legacy setting + legacy mapping + another script's `ReaMD/notes`
+  key; after open-file the mapping loads, legacy keys are gone, the foreign key
+  survives, and the saved `.rpp` shows the mapping only under `B4S1C_REAMD`
+  while `REAMD` still holds `NOTES`.
+- The E2E sessions now copy ReaImGui into the isolated profile. ReaProof
+  installs only JS_ReaScriptAPI on Linux/Windows, so before this every E2E
+  test hung on ReaMD's modal "ReaImGui required" box there.
+- Results (REAPER 7.75, `--reaproof-repeat=2`): lab-linux 3/3 green,
+  lab-windows 3/3 green (desktop session). Negative control (`REAMD_MAIN` =
+  copy with migration disabled): red on both, failing on "legacy mapping not
+  loaded". Evidence is kept locally under `Tests/lab-*/` (not published).
+- Pre-existing red unchanged: `test_scenario.lua` "link_fragment updates
+  existing fragment".

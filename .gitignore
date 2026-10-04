@@ -51,3 +51,12 @@ config.local.lua
 *.pem
 .env
 .env.*
+
+# Python test caches
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# ReaProof leg evidence (kept locally, not published)
+Tests/lab-*/
+tests/lab-*/

@@ -2,6 +2,8 @@
 -- Transparent overlay window for displaying current scenario text
 -- Syncs with Reaper playhead for live script reading
 
+local Config = require("config")
+
 local Teleprompter = {}
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -194,10 +196,15 @@ end
 -- CONFIG PERSISTENCE
 -- ═══════════════════════════════════════════════════════════════════════════
 
-local SECTION = "ReaMD_Teleprompter"
+-- Author-prefixed since v1.1.1; values from older versions are moved over once
+local SECTION = "b4s1c_ReaMD_Teleprompter"
+local LEGACY_SECTION = "ReaMD_Teleprompter"
+local CONFIG_KEYS = {"x", "y", "w", "h", "font_size", "opacity"}
 
 --- Load position and settings from Reaper ExtState
 function Teleprompter.load_config()
+    Config.migrate_ext_state(LEGACY_SECTION, SECTION, CONFIG_KEYS)
+
     local x = tonumber(reaper.GetExtState(SECTION, "x"))
     local y = tonumber(reaper.GetExtState(SECTION, "y"))
     local w = tonumber(reaper.GetExtState(SECTION, "w"))

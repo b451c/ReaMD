@@ -118,6 +118,21 @@
         <source file="../Libs/utils.lua">https://github.com/b451c/ReaMD/raw/v1.1.0/Libs/utils.lua</source>
         <source type="data" file="../prompts/ai_format_prompt.txt">https://github.com/b451c/ReaMD/raw/v1.1.0/prompts/ai_format_prompt.txt</source>
       </version>
+      <version name="1.1.1" author="b4s1c" time="2026-10-04T00:00:00Z">
+        <changelog><![CDATA[* ExtState sections now use an author prefix (b4s1c_ReaMD...) so they can't collide with other scripts. Settings, teleprompter position and project scenario links move over automatically on first run.
+* Fix legacy embedded scenario blocks not being stripped from opened files]]></changelog>
+        <source main="main">https://github.com/b451c/ReaMD/raw/v1.1.1/Main/ReaMD.lua</source>
+        <source file="../Libs/ai_parser.lua">https://github.com/b451c/ReaMD/raw/v1.1.1/Libs/ai_parser.lua</source>
+        <source file="../Libs/config.lua">https://github.com/b451c/ReaMD/raw/v1.1.1/Libs/config.lua</source>
+        <source file="../Libs/cue_list.lua">https://github.com/b451c/ReaMD/raw/v1.1.1/Libs/cue_list.lua</source>
+        <source file="../Libs/json.lua">https://github.com/b451c/ReaMD/raw/v1.1.1/Libs/json.lua</source>
+        <source file="../Libs/md_parser.lua">https://github.com/b451c/ReaMD/raw/v1.1.1/Libs/md_parser.lua</source>
+        <source file="../Libs/md_renderer.lua">https://github.com/b451c/ReaMD/raw/v1.1.1/Libs/md_renderer.lua</source>
+        <source file="../Libs/scenario_engine.lua">https://github.com/b451c/ReaMD/raw/v1.1.1/Libs/scenario_engine.lua</source>
+        <source file="../Libs/teleprompter.lua">https://github.com/b451c/ReaMD/raw/v1.1.1/Libs/teleprompter.lua</source>
+        <source file="../Libs/utils.lua">https://github.com/b451c/ReaMD/raw/v1.1.1/Libs/utils.lua</source>
+        <source type="data" file="../prompts/ai_format_prompt.txt">https://github.com/b451c/ReaMD/raw/v1.1.1/prompts/ai_format_prompt.txt</source>
+      </version>
     </reapack>
   </category>
   <metadata>

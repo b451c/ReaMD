@@ -12,7 +12,11 @@ local ScenarioEngine = {}
 -- CONSTANTS
 -- ═══════════════════════════════════════════════════════════════════════════
 
-local EXTSTATE_SECTION = "ReaMD"
+-- Project ExtState section, author-prefixed since v1.1.1. Older versions used
+-- the bare "ReaMD" section, which other scripts may also use, so migration
+-- only ever deletes our own key from it - never the whole section.
+local EXTSTATE_SECTION = "b4s1c_ReaMD"
+local LEGACY_EXTSTATE_SECTION = "ReaMD"
 local EXTSTATE_KEY_MAPPING = "fragment_mapping"
 
 -- Update throttling (~30fps)
@@ -1154,10 +1158,27 @@ function ScenarioEngine.save_mapping(file_path, content_hash)
     reaper.SetProjExtState(0, EXTSTATE_SECTION, EXTSTATE_KEY_MAPPING, json_str)
 end
 
+--- Move a mapping saved by a pre-v1.1.1 version into the prefixed section
+-- A mapping already in the new section wins. Deletes only our key from the
+-- legacy section: SetProjExtState with an empty key would wipe the whole
+-- section, including data that belongs to other scripts.
+local function migrate_legacy_mapping()
+    local has_legacy, legacy = reaper.GetProjExtState(0, LEGACY_EXTSTATE_SECTION, EXTSTATE_KEY_MAPPING)
+    if has_legacy == 0 or not legacy or legacy == "" then return end
+
+    local has_current = reaper.GetProjExtState(0, EXTSTATE_SECTION, EXTSTATE_KEY_MAPPING)
+    if has_current == 0 then
+        reaper.SetProjExtState(0, EXTSTATE_SECTION, EXTSTATE_KEY_MAPPING, legacy)
+    end
+    reaper.SetProjExtState(0, LEGACY_EXTSTATE_SECTION, EXTSTATE_KEY_MAPPING, "")
+end
+
 --- Load mapping from Project ExtState
 -- @param file_path string: Expected markdown file path
 -- @return boolean: True if loaded successfully and file matches
 function ScenarioEngine.load_mapping(file_path)
+    migrate_legacy_mapping()
+
     local retval, json_str = reaper.GetProjExtState(0, EXTSTATE_SECTION, EXTSTATE_KEY_MAPPING)
 
     if retval == 0 or not json_str or json_str == "" then

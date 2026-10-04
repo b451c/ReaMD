@@ -1,7 +1,12 @@
 -- @description ReaMD - Dockable Markdown Viewer for REAPER
 -- @author b4s1c
--- @version 1.1.0
+-- @version 1.1.1
 -- @changelog
+--   v1.1.1 (2026-10-04)
+--   * ExtState sections now carry an author prefix (b4s1c_ReaMD...) so they
+--     can't collide with other scripts. Settings, teleprompter position and
+--     project scenario links are moved over automatically on first run.
+--   * Fix legacy embedded scenario blocks not being stripped from opened files
 --   v1.1.0 (2026-05-27)
 --   + Search inside document (Ctrl+F) with next/prev navigation
 --   + Cue List floating panel — sorted fragment list, click to jump
@@ -2048,12 +2053,12 @@ end
 
 -- ===============================================================================
 -- ReaProof test seam (D26): INERT in production. When a test harness sets
--- ExtState ReaMD_Test/enable=1 BEFORE launching this script, selected internals
+-- ExtState b4s1c_ReaMD_Test/enable=1 BEFORE launching this script, selected internals
 -- are exposed globally for deterministic E2E assertions (state model +
 -- file-local entry points that are otherwise unreachable/modal-gated).
 -- With the flag unset this block does nothing.
 -- ===============================================================================
-if reaper.GetExtState("ReaMD_Test", "enable") == "1" then
+if reaper.GetExtState("b4s1c_ReaMD_Test", "enable") == "1" then
     _G.ReaMD_Test = {
         state = state,
         load_markdown_file = load_markdown_file,

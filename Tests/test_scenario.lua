@@ -519,7 +519,7 @@ test("save_mapping stores to ProjExtState", function()
     ScenarioEngine.save_mapping("/path/to/file.md", "abc123")
 
     -- Check that data was stored
-    local key = "ReaMD:fragment_mapping"
+    local key = "b4s1c_ReaMD:fragment_mapping"
     assert_not_nil(mock_proj_ext_state[key])
 end)
 

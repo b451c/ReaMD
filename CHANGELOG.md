@@ -5,6 +5,21 @@ All notable changes to ReaMD will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-10-04
+
+### Changed
+- **ExtState sections are now author-prefixed**: `b4s1c_ReaMD_Config`,
+  `b4s1c_ReaMD_Teleprompter` and the project section `b4s1c_ReaMD` replace the
+  bare `ReaMD*` names, so ReaMD can't collide with other scripts' data.
+  Settings, teleprompter position and project scenario links saved by older
+  versions are moved over automatically the first time v1.1.1 runs. In the
+  project section only ReaMD's own key is removed, so anything other scripts
+  keep in the old `ReaMD` section stays untouched.
+
+### Fixed
+- Legacy embedded scenario blocks (`<!-- reamd-scenario:... -->`) were never
+  stripped from opened files because the match pattern wasn't escaped.
+
 ## [1.1.0] - 2026-05-27
 
 ### Added

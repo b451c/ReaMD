@@ -65,6 +65,11 @@
      "assumption": "same as render layer"},
     {"id": "save_markdown_file", "title": "Save/Save As with .md enforcement", "kind": "io",
      "evidence": "Main/ReaMD.lua:499 save_markdown_file (seam-exposed)",
-     "oracles": ["io"], "status": "spec-needed", "intent": "declared", "tests": []}
+     "oracles": ["io"], "status": "spec-needed", "intent": "declared", "tests": []},
+    {"id": "extstate_migration", "title": "Author-prefixed ExtState sections + migration from pre-1.1.1 names", "kind": "io",
+     "evidence": "Libs/config.lua:179 Config.migrate_ext_state; Libs/scenario_engine.lua:1165 migrate_legacy_mapping; Libs/teleprompter.lua:205 Teleprompter.load_config",
+     "oracles": ["state", "io"], "status": "covered", "intent": "declared",
+     "tests": ["Tests/test_extstate_migration.lua", "Tests/test_e2e_reaproof.py"],
+     "comment": "v1.1.1: the bare 'ReaMD' project section is shared with another script, so migration deletes only our key (an empty key wipes the section); E2E also checks the saved .rpp; negative control = migration disabled"}
   ]
 }

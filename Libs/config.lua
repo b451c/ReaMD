@@ -4,8 +4,11 @@
 
 local Config = {}
 
--- ExtState section name for all ReaMD settings
-local SECTION = "ReaMD_Config"
+-- ExtState section name for all ReaMD settings.
+-- Author-prefixed since v1.1.1 so it can't collide with other scripts;
+-- settings saved by older versions are moved over once by Config.load().
+local SECTION = "b4s1c_ReaMD_Config"
+local LEGACY_SECTION = "ReaMD_Config"
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- DEFAULT VALUES
@@ -167,9 +170,32 @@ function Config.set(key, value)
     return true
 end
 
+--- Move persisted ExtState keys from a legacy section to a new one
+-- A key already present in the new section wins; the legacy copy is deleted
+-- either way. Only the listed keys are touched.
+-- @param old_section string: Section written by older versions
+-- @param new_section string: Current section
+-- @param keys table: Array of key names
+function Config.migrate_ext_state(old_section, new_section, keys)
+    for _, key in ipairs(keys) do
+        if reaper.HasExtState(old_section, key) then
+            if not reaper.HasExtState(new_section, key) then
+                reaper.SetExtState(new_section, key, reaper.GetExtState(old_section, key), true)
+            end
+            reaper.DeleteExtState(old_section, key, true)
+        end
+    end
+end
+
 --- Load all settings from Reaper ExtState
 -- Should be called at startup
 function Config.load()
+    local keys = {}
+    for key, _ in pairs(Config.defaults) do
+        keys[#keys + 1] = key
+    end
+    Config.migrate_ext_state(LEGACY_SECTION, SECTION, keys)
+
     -- Start with defaults
     copy_defaults()
 
